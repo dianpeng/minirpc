@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="mini-rpc" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/mini-rpc" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
+				<Option object_output="obj/Debug/" />
+				<Option type="2" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Compiler>
+					<Add option="-Wall" />
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/mini-rpc" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
+				<Option object_output="obj/Release/" />
+				<Option type="2" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Compiler>
+					<Add option="-Wall" />
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Unit filename="../README.md" />
+		<Unit filename="../minirpc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../minirpc.h" />
+		<Unit filename="../private/coder.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../private/coder.h" />
+		<Unit filename="../private/conf.h" />
+		<Unit filename="../private/mem.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../private/mem.h" />
+		<Unit filename="../private/mq.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../private/mq.h" />
+		<Unit filename="../private/network.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../private/network.h" />
+		<Unit filename="../test.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1414785805 source:/home/dianppeng/Dropbox/mini-rpc/main.c
+	<minirpc.h>
+	<stdio.h>
+
+1414903378 /home/dianppeng/Dropbox/mini-rpc/minirpc.h
+	<stddef.h>
+	<stdint.h>
+

@@ -1,0 +1,80 @@
+# depslib dependency file v1.0
+1414902704 source:/home/dianppeng/Dropbox/mini-rpc/private/coder.c
+	"coder.h"
+	"conf.h"
+	<limits.h>
+	<assert.h>
+
+1414798649 /home/dianppeng/Dropbox/mini-rpc/private/coder.h
+	<stddef.h>
+
+1414793148 /home/dianppeng/Dropbox/mini-rpc/private/conf.h
+	<assert.h>
+
+1414607340 source:/home/dianppeng/Dropbox/mini-rpc/private/mem.c
+	"mem.h"
+	"conf.h"
+	<stdlib.h>
+
+1414607369 /home/dianppeng/Dropbox/mini-rpc/private/mem.h
+	<stddef.h>
+
+1414895407 source:/home/dianppeng/Dropbox/mini-rpc/minirpc.c
+	"minirpc.h"
+	"private/coder.h"
+	"private/mq.h"
+	"private/network.h"
+	"private/conf.h"
+	"private/mem.h"
+	<assert.h>
+	<string.h>
+	<stdlib.h>
+	<stdarg.h>
+	<stdio.h>
+	<time.h>
+	<errno.h>
+
+1414902924 /home/dianppeng/Dropbox/mini-rpc/minirpc.h
+	<stddef.h>
+	<stdint.h>
+
+1414431897 /home/dianppeng/Dropbox/mini-rpc/private/mq.h
+
+1414895164 /home/dianppeng/Dropbox/mini-rpc/private/network.h
+	<stddef.h>
+	<WinSock2.h>
+	<windows.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<unistd.h>
+
+1414902619 source:/home/dianppeng/Dropbox/mini-rpc/private/mq.c
+	"mq.h"
+	"conf.h"
+	<assert.h>
+	<string.h>
+	<stdlib.h>
+	<Windows.h>
+	<pthread.h>
+
+1414785547 source:/home/dianppeng/Dropbox/mini-rpc/private/network.c
+	"network.h"
+	<assert.h>
+	<stdarg.h>
+	<stdio.h>
+	<string.h>
+	<errno.h>
+	<stdint.h>
+	<stdlib.h>
+	<sys/select.h>
+	<unistd.h>
+	<fcntl.h>
+	<sys/time.h>
+
+1414902666 source:/home/dianppeng/Dropbox/mini-rpc/test.c
+	"private/coder.h"
+	"minirpc.h"
+	<stdio.h>
+	<assert.h>
+	<limits.h>
+

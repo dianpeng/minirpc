@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1414902666 source:/home/dianppeng/Dropbox/mini-rpc/test.c
+	"private/coder.h"
+	"minirpc.h"
+	<stdio.h>
+	<assert.h>
+	<limits.h>
+
+1414798649 /home/dianppeng/Dropbox/mini-rpc/private/coder.h
+	<stddef.h>
+
+1414903378 /home/dianppeng/Dropbox/mini-rpc/minirpc.h
+	<stddef.h>
+	<stdint.h>
+
