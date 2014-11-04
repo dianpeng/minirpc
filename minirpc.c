@@ -141,7 +141,7 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
     buffer=CAST(char*,buffer)+1;
     ++cur_pos;
 
-    // method length
+    /* method length */
 #ifndef NDEBUG
     ret=decode_size(&(req->length),CAST(char*,buffer),CAST(size_t,length)-cur_pos);
     if( ret < 0 || req->length == 0 )

@@ -12,4 +12,4 @@ void mq_enqueue( struct mq_t* , void* data );
  * return -1 --> empty queue */
 int mq_dequeue( struct mq_t* , void** data );
 
-#endif // MQ_H_
+#endif /* MQ_H_ */

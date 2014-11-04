@@ -123,7 +123,7 @@ int mrpc_poll( struct minirpc_t * );
 
 int mrpc_request_recv( struct minirpc_t* , struct mrpc_request_t* req , void** );
 void mrpc_response_send( struct minirpc_t* , const struct mrpc_request_t* req , void* , const struct val_t* result , int ec );
-// This function is used to finish a indication request
+/* This function is used to finish a indication request */
 void mrpc_response_done( struct minirpc_t* , void* );
 void mrpc_write_log( struct minirpc_t* rpc , const char* fmt , ... );
 
