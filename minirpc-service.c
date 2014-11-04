@@ -67,7 +67,6 @@ int _mrpc_stbl_query_slot( const struct mrpc_service_table_t* tbl , const struct
 
     if( tbl->array[idx].func == NULL ) {
         tar = tbl->array + idx;
-        goto do_insert;
     } else {
         struct mrpc_service_entry_t* ent;
         int h = entry->fhash;
@@ -86,10 +85,8 @@ int _mrpc_stbl_query_slot( const struct mrpc_service_table_t* tbl , const struct
         while( tbl->array[ ++h % tbl->cap ].func != NULL ) {}
         tar = tbl->array + (h % tbl->cap);
         ent->next = tar;
-        goto do_insert;
     }
 
-do_insert:
     /* do the insertion here */
     memcpy(tar,entry,sizeof(*entry));
     tar->next = NULL;
