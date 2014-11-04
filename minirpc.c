@@ -10,15 +10,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <time.h>
 #include <errno.h>
 
-/*
- * Wire Protocol
- */
+/* Wire protocol */
 
 static
-int decode_varchar( void* buffer , size_t length , struct val_t* val ) {
+int decode_varchar( void* buffer , size_t length , struct mrpc_val_t* val ) {
     unsigned int str_len;
     int ret;
     if( length < 4 )
@@ -48,7 +47,7 @@ int decode_varchar( void* buffer , size_t length , struct val_t* val ) {
 }
 
 static
-size_t encode_varchar( const struct varchar_t* varchar , char* buffer ) {
+size_t encode_varchar( const struct mrpc_varchar_t* varchar , char* buffer ) {
     int ret = encode_uint(varchar->len,buffer);
     buffer=CAST(char*,buffer)+ret;
     memcpy(buffer,varchar->val,varchar->len);
@@ -56,7 +55,7 @@ size_t encode_varchar( const struct varchar_t* varchar , char* buffer ) {
 }
 
 static
-size_t mrpc_cal_val_size( const struct val_t* val ) {
+size_t mrpc_cal_val_size( const struct mrpc_val_t* val ) {
     switch(val->type) {
     case MRPC_UINT:
         return 1+encode_size_uint(val->value.uinteger);
@@ -71,23 +70,23 @@ size_t mrpc_cal_val_size( const struct val_t* val ) {
 
 /* The input buffer must be ensured to be large enough */
 static
-int mrpc_encode_val( const struct val_t* val , char* buffer ) {
+int mrpc_encode_val( const struct mrpc_val_t* val , char* buffer ) {
     *CAST(char*,buffer) = val->type;
     buffer=CAST(char*,buffer)+1;
 
     switch(val->type) {
     case MRPC_UINT:
-        return encode_uint(val->value.uinteger,buffer);
+        return 1+encode_uint(val->value.uinteger,buffer);
     case MRPC_INT:
-        return encode_int(val->value.integer,buffer);
+        return 1+encode_int(val->value.integer,buffer);
     case MRPC_VARCHAR:
-        return encode_varchar(&(val->value.varchar),buffer);
+        return 1+encode_varchar(&(val->value.varchar),buffer);
     default: assert(0); return 0;
     }
 }
 
 static
-int mrpc_decode_val( struct val_t* val , const char* buffer , size_t length ) {
+int mrpc_decode_val( struct mrpc_val_t* val , const char* buffer , size_t length ) {
     int type;
     int ret;
     if( length < 1 )
@@ -98,12 +97,12 @@ int mrpc_decode_val( struct val_t* val , const char* buffer , size_t length ) {
     val->type = type;
     switch(type) {
     case MRPC_UINT:
-        ret = decode_int( &(val->value.integer) , CAST(char*,buffer)+1 , length -1 );
+        ret = decode_uint( &(val->value.uinteger) , CAST(char*,buffer)+1 , length -1 );
         if( ret <0 )
             return ret;
         return ret + 1;
     case MRPC_INT:
-        ret = decode_uint( &(val->value.uinteger) , CAST(char*,buffer)+1 , length - 1 );
+        ret = decode_int( &(val->value.integer) , CAST(char*,buffer)+1 , length - 1 );
         if( ret < 0 )
             return ret;
         return ret + 1;
@@ -137,7 +136,7 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
     ENSURE(1,length-cur_pos);
     req->method_type = *CAST(char*,buffer);
     if( req->method_type != MRPC_NOTIFICATION && req->method_type != MRPC_FUNCTION )
-        return MRPC_REQUEST_PARSE_ERR_METHOD_TYPE_UNKNOWN;
+        return -1;
     buffer=CAST(char*,buffer)+1;
     ++cur_pos;
 
@@ -145,7 +144,7 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
 #ifndef NDEBUG
     ret=decode_size(&(req->length),CAST(char*,buffer),CAST(size_t,length)-cur_pos);
     if( ret < 0 || req->length == 0 )
-        return MRPC_REQUEST_PARSE_ERR_DATA_LEN_INVALID;
+        return -1;
     assert( length = req->length );
 #else
     req->length = length;
@@ -166,17 +165,17 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
     ENSURE(1,length-cur_pos);
     decode_byte(&len,CAST(char*,buffer));
     if( len >= MRPC_MAX_METHOD_NAME_LEN || len == 0 ) {
-        return MRPC_REQUEST_PARSE_ERR_METHOD_NAME_LENGTH;
+        return -1;
     }
     buffer=CAST(char*,buffer)+1;
     cur_pos += 1;
 
     /* check validation from the current position */
     if( length-cur_pos < len ) {
-        return MRPC_REQUEST_PARSE_ERR_PACKAGE_BROKEN;
+        return -1;
     } else {
         if( len >= MRPC_MAX_METHOD_NAME_LEN ) {
-            return MRPC_REQUEST_PARSE_ERR_METHOD_NAME_LENGTH;
+            return -1;
         }
         ENSURE(len,length-cur_pos);
         memcpy(req->method_name,buffer,len);
@@ -187,17 +186,22 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
     cur_pos += len;
 
     /* parameter list Type(1byte):Value */
+    req->par_size = 0;
     while( cur_pos < length ) {
         int ret;
-        req->par_size = 0;
         ret = mrpc_decode_val( &(req->par[req->par_size]) ,
             CAST(char*,buffer) , CAST(size_t,length) - cur_pos );
+
         if( ret < 0 )
-            return MRPC_REQUEST_PARSE_ERR_PARAMETER_INVALID;
+            return -1;
+
+        /* move forward the buffer and cursor */
         cur_pos += ret;
+        buffer=CAST(char*,buffer)+ret;
         ++(req->par_size);
+
         if( req->par_size == MRPC_MAX_PARAMETER_SIZE )
-            return MRPC_REQUEST_PARSE_ERR_TOO_MANY_PARAMETERS;
+            return -1;
     }
 
     return 0;
@@ -208,30 +212,42 @@ size_t mrpc_cal_response_size( const struct mrpc_response_t* response ) {
     /* Method has 1 bytes , since message header length is variable, just leave it here
      * Transaction code has 4 bytes . Method name length has 1 byte and followed by the
      * var length string */
-    size_t sz = 1 + 4 + (1 + response->method_name_len);
+    uint64_t sz = 1+4+(1+response->method_name_len);
     /* Error code is variable length */
     sz += encode_size_int(response->error_code);
     /* Result code buffer length */
-    sz += mrpc_cal_val_size( &(response->result) );
+    if( response->error_code == MRPC_EC_OK )
+        sz += mrpc_cal_val_size( &(response->result) );
     /* Lastly method length
      * But we need to consider the truth that we need extra X space to
      * encode the message length _AS_WELL_ , this length should cover
      * everything here. */
     if( encode_size_size(sz+1) == 1 ) {
-        return sz+1;
+        ++sz;
     } else {
-        return sz+1+sizeof(size_t);
+        sz+=1+sizeof(size_t);
     }
+    /* Checking if the value of size is large than the size_t representation */
+    if( sz > CAST(uint64_t,CAST(size_t,-1)) )
+        return 0;
+    else
+        return CAST(size_t,sz);
 }
 
 static
 void* mrpc_response_serialize( const struct mrpc_response_t* response , size_t* len ) {
     /* Calculate the response buffer length */
     size_t sz = mrpc_cal_response_size(response);
-    void* data = malloc(CAST(size_t,sz));
-    void* h = data;
+    void* data;
+    void* h;
     int ret;
 
+    /* Too large package */
+    if( sz == 0 )
+        return NULL;
+
+    data = malloc(CAST(size_t,sz));
+    h = data;
     VERIFY(data);
     /* Do the serialization one by one now */
     *CAST(char*,data) = CAST(char,response->method_type);
@@ -256,8 +272,10 @@ void* mrpc_response_serialize( const struct mrpc_response_t* response , size_t* 
     memcpy(data,response->method_name,response->method_name_len);
     data=CAST(char*,data)+response->method_name_len;
     /* Result */
-    ret = mrpc_encode_val( &(response->result), CAST(char*,data) );
-    assert(ret >0);
+    if( response->error_code == MRPC_EC_OK ) {
+        ret = mrpc_encode_val( &(response->result), CAST(char*,data) );
+        assert(ret >0);
+    }
     /* Done */
     *len = sz;
     return h;
@@ -265,25 +283,36 @@ void* mrpc_response_serialize( const struct mrpc_response_t* response , size_t* 
 
 static
 size_t mrpc_cal_request_size( const struct mrpc_request_t* req ) {
-    size_t sz = 1 + 4 + (1+req->method_name_len);
+    uint64_t sz = 1 + 4 + (1+req->method_name_len);
     size_t i ;
     for( i = 0 ; i < req->par_size ; ++i ) {
         sz += mrpc_cal_val_size(req->par+i);
     }
-    if( encode_size_size(sz+1) == 1 )
-        return sz+1;
+    if( encode_size_size(sz+1) == 1 ) {
+        ++sz;
+    } else {
+        sz+=1+sizeof(size_t);
+    }
+    if( sz > CAST(uint64_t,CAST(size_t,-1)) )
+        return 0;
     else
-        return sz+1+sizeof(size_t);
+        return sz;
 }
 
 static
 void* mrpc_request_msg_serialize( const struct mrpc_request_t* req , size_t* len ) {
     size_t sz = mrpc_cal_request_size(req);
-    void* data = malloc(sz);
-    void* h = data;
+    void* data;
+    void* h;
     int ret;
     size_t i;
 
+    /* Too large package */
+    if( sz == 0 )
+        return NULL;
+
+    data = malloc(sz);
+    h = data;
     VERIFY(data);
     *len = sz;
 
@@ -369,18 +398,17 @@ mrpc_response_parse( void* data , size_t length , struct mrpc_response_t* respon
     length-=response->method_name_len+1;
 
     /* result */
-    ret = mrpc_decode_val(&response->result,data,length);
-    if( ret<0 )
-        return -1;
-    length -= ret;
+    if( response->error_code == MRPC_EC_OK ) {
+        ret = mrpc_decode_val(&response->result,data,length);
+        if( ret<0 )
+            return -1;
+        length -= ret;
+    }
 
     return length == 0 ? 0 : -1;
 }
 
-/*
- * MRPC
- */
-
+/* MRPC */
 
 struct minirpc_t {
     struct mq_t* req_q; /* request queue */
@@ -438,7 +466,7 @@ int mrpc_get_package_size( void* buf , size_t sz , size_t* len )  {
 }
 
 static
-void mrpc_request_parse_fail( struct minirpc_t* rpc , struct mrpc_conn_t* conn , int ec ) {
+void mrpc_request_parse_fail( struct minirpc_t* rpc , struct mrpc_conn_t* conn ) {
     conn->response.tag = RESPONSE_TAG_ERR;
     conn->response.buf = NULL;
     conn->response.len = 0;
@@ -448,23 +476,29 @@ void mrpc_request_parse_fail( struct minirpc_t* rpc , struct mrpc_conn_t* conn ,
 
 int mrpc_request_recv( struct minirpc_t* rpc , struct mrpc_request_t* req , void** conn ) {
     struct mrpc_req_data_t* data;
-    int ret = mq_dequeue(rpc->req_q,CAST(void*,&data));
     int ec;
-    if( ret != 0 ) {
-        return -1;
-    }
-    *conn = data->rconn;
-    ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
-    if( ec != 0 ) {
-        mrpc_request_parse_fail( rpc, CAST(struct mrpc_conn_t*,*conn) , ec );
-        return ec;
-    }
+    int ret;
+
+    do {
+        ret = mq_dequeue(rpc->req_q,CAST(void*,&data));
+        if( ret != 0 ) {
+            return -1;
+        }
+        *conn = data->rconn;
+        ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
+        if( ec != 0 ) {
+            mrpc_request_parse_fail( rpc, CAST(struct mrpc_conn_t*,*conn));
+        } else {
+            break;
+        }
+    } while(1);
+
     return 0;
 }
 
 void mrpc_response_send( struct minirpc_t* rpc ,
                           const struct mrpc_request_t* req ,
-                          void* opaque , const struct val_t* result , int ec ) {
+                          void* opaque , const struct mrpc_val_t* result , int ec ) {
     struct mrpc_response_t response;
     struct mrpc_conn_t* conn = CAST(struct mrpc_conn_t*,opaque);
 
@@ -481,7 +515,8 @@ void mrpc_response_send( struct minirpc_t* rpc ,
     response.transaction_id[3] = req->transaction_id[3];
 
     /* this copy is fine here since we don't really use this pointer */
-    response.result = *result;
+    if( ec == MRPC_EC_OK )
+        response.result = *result;
 
     /* serialization of the response objects */
     conn->response.buf = mrpc_response_serialize(&response,&conn->response.len);
@@ -756,7 +791,7 @@ int mrpc_poll( struct minirpc_t * rpc ) {
     return ret;
 }
 
-void mrpc_varchar_create( struct varchar_t* varchar , const char* str , int own ) {
+void mrpc_varchar_create( struct mrpc_varchar_t* varchar , const char* str , int own ) {
     if( own ) {
         varchar->len = strlen(str);
         varchar->val=str;
@@ -773,7 +808,7 @@ void mrpc_varchar_create( struct varchar_t* varchar , const char* str , int own 
     }
 }
 
-void mrpc_varchar_destroy( struct varchar_t* varchar ) {
+void mrpc_varchar_destroy( struct mrpc_varchar_t* varchar ) {
     if(varchar->buf != varchar->val) {
         free(CAST(void*,varchar->val));
     }
@@ -966,4 +1001,3 @@ void* mrpc_request_serialize( size_t* len , int method_type , const char* method
     va_start(vl,par_fmt);
     return mrpc_request_vserialize(len,method_type,method_name,par_fmt,vl);
 }
-

@@ -7,3 +7,17 @@
 	<stddef.h>
 	<stdint.h>
 
+1415140243 source:/home/dian/Dropbox/mini-rpc/main.c
+	"minirpc.h"
+	"minirpc-service.h"
+	<assert.h>
+	<string.h>
+	<stdio.h>
+
+1415139820 /home/dian/Dropbox/mini-rpc/minirpc.h
+	<stddef.h>
+	<stdint.h>
+
+1415140051 /home/dian/Dropbox/mini-rpc/minirpc-service.h
+	<stddef.h>
+

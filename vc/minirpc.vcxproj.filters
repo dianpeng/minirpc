@@ -14,50 +14,56 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Header Files\private">
-      <UniqueIdentifier>{694d0771-6c6c-4835-9c76-c9e05b27fdda}</UniqueIdentifier>
+      <UniqueIdentifier>{25e4e7e8-899a-40cc-9103-4d6dd657b0ad}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\private">
-      <UniqueIdentifier>{fb14c37a-e7d5-425a-a583-0033a81186e3}</UniqueIdentifier>
+      <UniqueIdentifier>{a56337e6-18ac-4346-a497-b4ab8490f0f5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\minirpc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\private\coder.h">
-      <Filter>Header Files\private</Filter>
-    </ClInclude>
-    <ClInclude Include="..\private\mq.h">
-      <Filter>Header Files\private</Filter>
-    </ClInclude>
-    <ClInclude Include="..\private\network.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\private\mem.h">
-      <Filter>Header Files\private</Filter>
-    </ClInclude>
-    <ClInclude Include="..\private\conf.h">
-      <Filter>Header Files\private</Filter>
-    </ClInclude>
+    <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\minirpc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\private\coder.c">
+      <Filter>Source Files\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\private\mem.c">
       <Filter>Source Files\private</Filter>
     </ClCompile>
     <ClCompile Include="..\private\mq.c">
       <Filter>Source Files\private</Filter>
     </ClCompile>
     <ClCompile Include="..\private\network.c">
+      <Filter>Source Files\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\minirpc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\private\mem.c">
-      <Filter>Source Files\private</Filter>
+    <ClCompile Include="..\minirpc-service.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\README.md" />
+    <ClInclude Include="..\private\coder.h">
+      <Filter>Header Files\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\private\conf.h">
+      <Filter>Header Files\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\private\mem.h">
+      <Filter>Header Files\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\private\mq.h">
+      <Filter>Header Files\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\private\network.h">
+      <Filter>Header Files\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\minirpc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\minirpc-service.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

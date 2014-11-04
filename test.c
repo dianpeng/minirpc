@@ -28,9 +28,9 @@ int main() {
     struct mrpc_response_t res;
 
     mrpc_init();
-    ret = mrpc_request( "127.0.0.1:12345" , MRPC_FUNCTION , "Hello World" , &res , "" );
+    ret = mrpc_request( "10.1.5.133:12345" , MRPC_FUNCTION , "Add" , &res , "%u%u" , 1 , 123123122 );
     assert(ret == 0);
-    printf("%s",res.result.value.varchar.val);
+    printf("%d",res.result.value.uinteger);
     return 0;
 }
 #endif

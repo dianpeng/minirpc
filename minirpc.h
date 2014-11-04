@@ -28,29 +28,28 @@ enum {
 };
 
 /* Varchar */
-struct varchar_t {
+struct mrpc_varchar_t {
     const char* val; /* null terminated guaranteed */
     size_t len;
     char buf[MRPC_MAX_LOCAL_VAR_CHAR_LEN];
 };
 
-/* Using this function to compose a varchar 
- * struct varchar_t varc; 
- * mrpc_varchar(&varc,"SomeString",0); 
+/* Using this function to compose a varchar
+ * struct mrpc_varchar_t varc;
+ * mrpc_varchar(&varc,"SomeString",0);
  * own == 1 --> copy
  * own == 0 --> move  */
 
-void mrpc_varchar_create( struct varchar_t* , const char* str , int own );
-void mrpc_varchar_destroy( struct varchar_t* );
+void mrpc_varchar_create( struct mrpc_varchar_t* , const char* str , int own );
+void mrpc_varchar_destroy( struct mrpc_varchar_t* );
 
 /* Value */
-struct val_t {
+struct mrpc_val_t {
     int type;
     union {
-        double real;
         uint32_t uinteger;
         int32_t integer;
-        struct varchar_t varchar;
+        struct mrpc_varchar_t varchar;
     } value;
 };
 
@@ -86,7 +85,7 @@ struct mrpc_request_t {
     char transaction_id[4];
     size_t length;
     size_t par_size;
-    struct val_t par[MRPC_MAX_PARAMETER_SIZE];
+    struct mrpc_val_t par[MRPC_MAX_PARAMETER_SIZE];
 };
 
 struct mrpc_response_t {
@@ -95,41 +94,52 @@ struct mrpc_response_t {
     size_t method_name_len;
     size_t length;
     char transaction_id[4];
-    struct val_t result;
+    struct mrpc_val_t result;
     int error_code;
 };
 
-/* parsing status */
+/* error code
+ *
+ * The error code section is inside of the response object. If the error code
+ * is not MRPC_OK , then the user should not expect any result field in that
+ * response object. The error code is used to convey the external error , so
+ * a function execution error is not counted here. You could treat this error
+ * as something like , stack layout error or parameter size error. Which is
+ * not the error like I cannot open a file since the file is not existed. A
+ * simple way to judge it is without ever executing the real logic of a function,
+ * that error is still generated.
+ *
+ */
+
 enum {
-    MRPC_REQUEST_PARSE_ERR_OK = 0,
-    MRPC_REQUEST_PARSE_ERR_METHOD_TYPE_UNKNOWN = 1 ,
-    MRPC_REQUEST_PARSE_ERR_DATA_LEN_INVALID = 2 ,
-    MRPC_REQUEST_PARSE_ERR_METHOD_NAME_LENGTH = 3,
-    MRPC_REQUEST_PARSE_ERR_PARAMETER_INVALID = 4,
-    MRPC_REQUEST_PARSE_ERR_TOO_MANY_PARAMETERS = 5,
-    MRPC_REQUEST_PARSE_ERR_PACKAGE_BROKEN = 10
+    MRPC_EC_OK = 0,
+    MRPC_EC_FUNCTION_NOT_FOUND,
+    MRPC_EC_FUNCTION_INVALID_PARAMETER_SIZE,
+    MRPC_EC_FUNCTION_INVALID_PARAMETER_TYPE
 };
 
 /* initialize the mini-rpc */
 void mrpc_init();
 
 /* ----------------------------------------
-/* Server side
-/* --------------------------------------*/
+ * Server side
+ * --------------------------------------*/
 struct minirpc_t;
 struct minirpc_t* mrpc_create( const char* logf_name , const char* addr );
 int mrpc_run( struct minirpc_t * );
 int mrpc_poll( struct minirpc_t * );
 
 int mrpc_request_recv( struct minirpc_t* , struct mrpc_request_t* req , void** );
-void mrpc_response_send( struct minirpc_t* , const struct mrpc_request_t* req , void* , const struct val_t* result , int ec );
+void mrpc_response_send( struct minirpc_t* , const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
 /* This function is used to finish a indication request */
 void mrpc_response_done( struct minirpc_t* , void* );
+
 void mrpc_write_log( struct minirpc_t* rpc , const char* fmt , ... );
 
 /* ----------------------------------------
-/* Client side
-/* --------------------------------------*/
+ * Client side
+ * --------------------------------------*/
+
 /* mini RPC request function
  * blocking version API */
 int mrpc_request( const char* addr, int method_type , const char* method_name ,
@@ -143,8 +153,8 @@ void* mrpc_request_serialize( size_t* len , int method_type, const char* method_
 int mrpc_response_parse( void* buf , size_t sz , struct mrpc_response_t* r );
 
 /* ----------------------------------------
-/* Utility Function
-/* --------------------------------------*/
+ * Utility Function
+ * --------------------------------------*/
 
 /* this function is used for choking out the size of a specific package. Suppose that
  * you get some data from the network, then you want to figure out that if a full package

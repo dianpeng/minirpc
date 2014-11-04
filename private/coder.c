@@ -3,6 +3,7 @@
 
 #include <limits.h>
 #include <assert.h>
+
 /* Unsigned int using base 128 */
 static const unsigned int UINT_3BYTE = (1 <<(7*3)) -1;
 static const unsigned int UINT_4BYTE = (1 <<(7*4)) -1;
@@ -86,7 +87,6 @@ int decode_uint( unsigned int* val , const char* buf , size_t len ) {
 
 /* Signed integer is encoded by base 128 with zigzag ,
  * at most 5 bytes are used to encode a 4 byte number */
-
 int encode_int( int val , char buf[5] ) {
     return encode_uint( (val<<1) ^ (val>>31) , buf );
 }

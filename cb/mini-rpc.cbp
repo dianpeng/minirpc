@@ -35,6 +35,10 @@
 			</Target>
 		</Build>
 		<Unit filename="../README.md" />
+		<Unit filename="../minirpc-service.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../minirpc-service.h" />
 		<Unit filename="../minirpc.c">
 			<Option compilerVar="CC" />
 		</Unit>

@@ -1,17 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini-rpc", "mini-rpc.vcxproj", "{0107C07A-A18E-4790-A6C1-262F6BCB20E7}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test.vcxproj", "{8272179E-F933-41C4-8091-006FDF1A543F}"
-	ProjectSection(ProjectDependencies) = postProject
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7} = {0107C07A-A18E-4790-A6C1-262F6BCB20E7}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testS", "testS.vcxproj", "{1880C962-CEE4-4E98-BC41-9D2E0336267B}"
 	ProjectSection(ProjectDependencies) = postProject
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7} = {0107C07A-A18E-4790-A6C1-262F6BCB20E7}
+		{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1} = {1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "minirpc", "minirpc.vcxproj", "{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,10 +16,6 @@ Global
 		Release|Win32 = Release|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7}.Debug|Win32.ActiveCfg = Debug|Win32
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7}.Debug|Win32.Build.0 = Debug|Win32
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7}.Release|Win32.ActiveCfg = Release|Win32
-		{0107C07A-A18E-4790-A6C1-262F6BCB20E7}.Release|Win32.Build.0 = Release|Win32
 		{8272179E-F933-41C4-8091-006FDF1A543F}.Debug|Win32.ActiveCfg = Debug|Win32
 		{8272179E-F933-41C4-8091-006FDF1A543F}.Debug|Win32.Build.0 = Debug|Win32
 		{8272179E-F933-41C4-8091-006FDF1A543F}.Release|Win32.ActiveCfg = Release|Win32
@@ -31,6 +24,10 @@ Global
 		{1880C962-CEE4-4E98-BC41-9D2E0336267B}.Debug|Win32.Build.0 = Debug|Win32
 		{1880C962-CEE4-4E98-BC41-9D2E0336267B}.Release|Win32.ActiveCfg = Release|Win32
 		{1880C962-CEE4-4E98-BC41-9D2E0336267B}.Release|Win32.Build.0 = Release|Win32
+		{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}.Debug|Win32.Build.0 = Debug|Win32
+		{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}.Release|Win32.ActiveCfg = Release|Win32
+		{1DD3F8B4-78EC-4AC2-BF38-DECDC8AA68B1}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

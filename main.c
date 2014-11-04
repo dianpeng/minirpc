@@ -1,38 +1,82 @@
-#include <minirpc.h>
+#include "minirpc.h"
+#include "minirpc-service.h"
+#include <assert.h>
+#include <string.h>
 #include <stdio.h>
 
-// We will simulate a Hello World function
+/*
+ * Using MiniRPC Service module to help us handle the business
+ * logic in backend thread.
+ */
 
 static
-void HelloWorld_CB(
-    const struct mrpc_request_t* req ,
-    void* key,
-    struct minirpc_t* rpc ) {
-    struct val_t result;
-    mrpc_val_varchar(&result,"Hello World",0);
-    mrpc_response_send(rpc,req,key,&result,0);
-    mrpc_val_destroy(&result);
+void
+hello_world_cb( struct mrpc_service_t* service ,
+                const struct mrpc_request_t* req ,
+                void* udata,
+                int* error_code,
+                struct mrpc_val_t* val ) {
+
+    assert(strcmp(req->method_name,"Hello World") == 0);
+    /* checking the parameter size */
+    if( req->par_size != 0 ) {
+        *error_code = MRPC_EC_FUNCTION_INVALID_PARAMETER_SIZE;
+        return;
+    }
+    /* formating the return value */
+    mrpc_val_varchar(val,"Hello World",0);
+    /* setting the correct error code */
+    *error_code = MRPC_EC_OK;
+}
+
+/* This function will calculate the addition of 2 unsigned integer */
+static
+void
+addition_cb( struct mrpc_service_t* service ,
+             const struct mrpc_request_t* req ,
+             void* udata,
+             int* error_code ,
+             struct mrpc_val_t* val ) {
+
+    if( req->par_size != 2 ) {
+        *error_code = MRPC_EC_FUNCTION_INVALID_PARAMETER_SIZE;
+        return;
+    }
+    /* get the 2 unsigned integer value */
+    if( req->par[0].type != MRPC_UINT || req->par[1].type != MRPC_UINT ) {
+        *error_code = MRPC_EC_FUNCTION_INVALID_PARAMETER_TYPE;
+        return;
+    }
+    /* do the calculation here */
+    mrpc_val_uint(val,req->par[0].value.uinteger+req->par[1].value.uinteger);
+    /* setting the correct error code */
+    *error_code = MRPC_EC_OK;
 }
 
 int main() {
     struct minirpc_t* rpc ;
+    struct mrpc_service_t* service;
 
     mrpc_init();
-    rpc = mrpc_create("log.txt","127.0.0.1:12345");
+    rpc = mrpc_create("log.txt","10.1.5.133:12345");
+    service = mrpc_service_create(rpc,128,0,0,NULL);
+
+    /* register the service entry */
+    mrpc_service_add( service, hello_world_cb, "Hello World", NULL );
+    mrpc_service_add( service, addition_cb, "Add", NULL );
+
+    /* start the service in backend thread */
+    mrpc_service_run_remote(service,4);
+
     if( rpc == NULL ) {
         fprintf(stderr,"cannot create minirpc\n");
         return -1;
     }
+    /* start working now */
+    mrpc_run(rpc);
 
-    while(1) {
-        int ret = mrpc_poll(rpc);
-        void* data;
-        struct mrpc_request_t req;
-        if( ret < 0 ) {
-            fprintf(stderr,"minirpc-error\n");
-        }
-        if( mrpc_request_recv(rpc,&req,&data) == 0 ) {
-            HelloWorld_CB(&req,data,rpc);
-        }
-    }
+    /* done */
+    mrpc_service_quit(service);
+
+    return 0;
 }

@@ -1,5 +1,6 @@
 #include "mq.h"
 #include "conf.h"
+
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -22,50 +23,55 @@
 #ifdef _WIN32
 #include <Windows.h>
 typedef CRITICAL_SECTION spinlock_t;
+static
 void spinlock_init( spinlock_t* l ) {
     InitializeCriticalSectionAndSpinCount(l,2000);
 }
+static
 void spinlock_lock( spinlock_t* l ) {
     EnterCriticalSection(l);
 }
+static
 void spinlock_unlock( spinlock_t* l ) {
     LeaveCriticalSection(l);
 }
+static
 void spinlock_delete( spinlock_t* l ) {
     DeleteCriticalSection(l);
 }
 #else
 #include <pthread.h>
 typedef pthread_spinlock_t spinlock_t;
+static
 void spinlock_init( spinlock_t* lk ) {
 #ifndef NDEBUG
     int ret =
 #endif /* NDEBUG */
-    pthread_spin_init(lk,PTHREAD_PROCESS_PRIVATE);
+        pthread_spin_init(lk,PTHREAD_PROCESS_PRIVATE);
     assert( ret == 0 );
 }
-
+static
 void spinlock_delete( spinlock_t* lk ) {
 #ifndef NDEBUG
     int ret =
 #endif /* NDEBUG */
-    pthread_spin_destroy(lk);
+        pthread_spin_destroy(lk);
     assert( ret == 0 );
 }
-
+static
 void spinlock_lock( spinlock_t* lk ) {
 #ifndef NDEBUG
     int ret =
 #endif /* NDEBUG */
-    pthread_spin_lock(lk);
+        pthread_spin_lock(lk);
     assert( ret == 0 );
 }
-
+static
 void spinlock_unlock( spinlock_t* lk ) {
 #ifndef NDEBUG
     int ret =
 #endif /* NDEBUG */
-    pthread_spin_unlock(lk);
+        pthread_spin_unlock(lk);
     assert( ret == 0 );
 }
 
