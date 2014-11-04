@@ -28,7 +28,7 @@ extern "C" {
 #else
 #define VERIFY(cond) do { \
     if(!cond) { \
-    fprintf(stderr,"die:" #cond); abort(); } while(0)
+    fprintf(stderr,"die:" #cond); abort(); }} while(0)
 #endif // NDEBUG
 
 #ifndef MULTI_SERVER_ENABLE

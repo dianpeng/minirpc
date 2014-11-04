@@ -1,6 +1,7 @@
 #ifndef CONF_H_
 #define CONF_H_
 #include <assert.h>
+#include <stdio.h>
 #define CAST(t,p) ((t)(p))
 
 #ifndef NDEBUG
