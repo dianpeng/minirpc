@@ -307,7 +307,6 @@ th_pool_destroy( struct th_pool_t* pool ) {
 
 /* MRPC service implementation */
 struct mrpc_service_t {
-    struct minirpc_t* rpc;
     void* udata;
     struct mrpc_service_table_t stable;
     struct th_data_t* th_data; /* the size of this data is same as thread pool th_sz */
@@ -330,7 +329,7 @@ int _wait_for_message( struct mrpc_service_th_t* th ,
     int loop = 1;
 
     while( !th->exit ) {
-        int ret = mrpc_request_recv(th->service->rpc,req,key);
+        int ret = mrpc_request_recv(req,key);
         if( ret == 0 ) {
             return 0;
         }
@@ -365,7 +364,6 @@ _mrpc_service_th_cb( void* par ) {
         if( func_entry == NULL ) {
 
             mrpc_response_send(
-                th->service->rpc,
                 CAST(const struct mrpc_request_t*,&req),
                 key,
                 NULL,
@@ -383,7 +381,6 @@ _mrpc_service_th_cb( void* par ) {
                 &result);
             /* sending the response to the MRPC out band queue */
             mrpc_response_send(
-                th->service->rpc,
                 &req,
                 key,
                 &result,
@@ -394,8 +391,7 @@ _mrpc_service_th_cb( void* par ) {
 }
 
 struct mrpc_service_t*
-mrpc_service_create( struct minirpc_t* mrpc , size_t sz ,
-                     size_t min_slp_time , size_t max_slp_time , void* opaque ) {
+mrpc_service_create( size_t sz , size_t min_slp_time , size_t max_slp_time , void* opaque ) {
     struct mrpc_service_t* ret = malloc(sizeof(*ret));
 
     VERIFY(ret);
@@ -408,7 +404,6 @@ mrpc_service_create( struct minirpc_t* mrpc , size_t sz ,
     ret->th_pool.th_sz = 0;
 
     ret->udata = opaque;
-    ret->rpc = mrpc;
     ret->max_slp_tm = max_slp_time == 0 ? SERVICE_MAX_SLEEP_TIME : max_slp_time;
     ret->min_slp_tm = min_slp_time == 0 ? SERVICE_MIN_SLEEP_TIME : min_slp_time;
 
@@ -434,13 +429,12 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
     void* key;
     struct mrpc_request_t req;
     const struct mrpc_service_entry_t* func_entry;
-    if( mrpc_request_recv(service->rpc,&req,&key) == 0 ) {
+    if( mrpc_request_recv(&req,&key) == 0 ) {
         /* look up the service and then start to execute */
         func_entry = mrpc_stbl_query( &(service->stable), req.method_name );
         if( func_entry == NULL ) {
 
             mrpc_response_send(
-                service->rpc,
                 &req,
                 key,
                 NULL,
@@ -459,7 +453,6 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
                 &result);
             /* sending the response to the MRPC out band queue */
             mrpc_response_send(
-                service->rpc,
                 &req,
                 key,
                 &result,
@@ -512,8 +505,4 @@ int mrpc_service_quit( struct mrpc_service_t* service ) {
 
 void* mrpc_service_get_udata( struct mrpc_service_t* service ) {
     return service->udata;
-}
-
-struct minirpc_t* mrpc_service_get_mrpc( struct mrpc_service_t* service ) {
-    return service->rpc;
 }

@@ -54,12 +54,15 @@ addition_cb( struct mrpc_service_t* service ,
 }
 
 int main() {
-    struct minirpc_t* rpc ;
     struct mrpc_service_t* service;
+    int ret;
 
-    mrpc_init();
-    rpc = mrpc_create("log.txt","10.1.5.133:12345");
-    service = mrpc_service_create(rpc,128,0,0,NULL);
+    if( mrpc_init("log.txt","127.0.0.1:12345") != 0 ) {
+        fprintf(stderr,"Cannot initialize MRPC!");
+        return -1;
+    }
+
+    service = mrpc_service_create(128,0,0,NULL);
 
     /* register the service entry */
     mrpc_service_add( service, hello_world_cb, "Hello World", NULL );
@@ -68,15 +71,20 @@ int main() {
     /* start the service in backend thread */
     mrpc_service_run_remote(service,4);
 
-    if( rpc == NULL ) {
-        fprintf(stderr,"cannot create minirpc\n");
-        return -1;
-    }
     /* start working now */
-    mrpc_run(rpc);
+    ret = mrpc_run();
 
-    /* done */
+    if( ret < 0 ) {
+        /* Handle error */
+        fprintf(stderr,"MRPC Error!");
+    } else {
+        /* User interruption */ 
+        fprintf(stderr,"User interruption!");
+    }
+
+    /* (1) Quit the service (2) Stop the MRPC */
     mrpc_service_quit(service);
+    mrpc_clean();
 
     return 0;
 }

@@ -12,12 +12,11 @@
  * and also the service. See test/exampe for more detail
  */
 
-struct minirpc_t;
 struct mrpc_val_t;
 struct mrpc_service_t;
 struct mrpc_request_t;
 
-struct mrpc_service_t* mrpc_service_create( struct minirpc_t* mrpc , size_t sz ,
+struct mrpc_service_t* mrpc_service_create( size_t sz ,
     size_t min_slp_time , size_t max_slp_time , void* opaque );
 
 /* typically you don't have to call this function */
@@ -46,6 +45,5 @@ int mrpc_service_quit( struct mrpc_service_t* );
 
 /* utility */
 void* mrpc_service_get_udata( struct mrpc_service_t* );
-struct minirpc_t* mrpc_service_get_mrpc( struct mrpc_service_t* );
 
 #endif /* MINIRPC_SERVICE_H_ */

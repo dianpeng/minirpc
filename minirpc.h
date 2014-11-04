@@ -119,22 +119,23 @@ enum {
 };
 
 /* initialize the mini-rpc */
-void mrpc_init();
+int mrpc_init( const char* logf_name , const char* addr );
+void mrpc_clean();
 
 /* ----------------------------------------
  * Server side
  * --------------------------------------*/
-struct minirpc_t;
-struct minirpc_t* mrpc_create( const char* logf_name , const char* addr );
-int mrpc_run( struct minirpc_t * );
-int mrpc_poll( struct minirpc_t * );
+int mrpc_run();
+int mrpc_poll();
 
-int mrpc_request_recv( struct minirpc_t* , struct mrpc_request_t* req , void** );
-void mrpc_response_send( struct minirpc_t* , const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
+/* All the following functions are thread safe */
+
+int mrpc_request_recv( struct mrpc_request_t* req , void** );
+void mrpc_response_send( const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
 /* This function is used to finish a indication request */
-void mrpc_response_done( struct minirpc_t* , void* );
-
-void mrpc_write_log( struct minirpc_t* rpc , const char* fmt , ... );
+void mrpc_response_done( void* );
+/* Writing the log into the MRPC server log file */
+void mrpc_write_log( const char* fmt , ... );
 
 /* ----------------------------------------
  * Client side

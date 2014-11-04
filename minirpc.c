@@ -222,7 +222,7 @@ size_t mrpc_cal_response_size( const struct mrpc_response_t* response ) {
      * But we need to consider the truth that we need extra X space to
      * encode the message length _AS_WELL_ , this length should cover
      * everything here. */
-    if( encode_size_size(sz+1) == 1 ) {
+    if( encode_size_size( CAST(size_t,sz+1) ) == 1 ) {
         ++sz;
     } else {
         sz+=1+sizeof(size_t);
@@ -288,7 +288,7 @@ size_t mrpc_cal_request_size( const struct mrpc_request_t* req ) {
     for( i = 0 ; i < req->par_size ; ++i ) {
         sz += mrpc_cal_val_size(req->par+i);
     }
-    if( encode_size_size(sz+1) == 1 ) {
+    if( encode_size_size( CAST(size_t,sz+1) ) == 1 ) {
         ++sz;
     } else {
         sz+=1+sizeof(size_t);
@@ -296,7 +296,7 @@ size_t mrpc_cal_request_size( const struct mrpc_request_t* req ) {
     if( sz > CAST(uint64_t,CAST(size_t,-1)) )
         return 0;
     else
-        return sz;
+        return CAST(size_t,sz);
 }
 
 static
@@ -439,7 +439,6 @@ struct mrpc_req_data_t {
 };
 
 struct mrpc_conn_t {
-    struct minirpc_t* rpc;
     int stage;
     size_t length;
     struct net_connection_t* conn;
@@ -466,28 +465,33 @@ int mrpc_get_package_size( void* buf , size_t sz , size_t* len )  {
 }
 
 static
-void mrpc_request_parse_fail( struct minirpc_t* rpc , struct mrpc_conn_t* conn ) {
+struct minirpc_t RPC;
+
+static int MRPC_INSTANCE_NUM =0;
+
+static
+void mrpc_request_parse_fail( struct mrpc_conn_t* conn ) {
     conn->response.tag = RESPONSE_TAG_ERR;
     conn->response.buf = NULL;
     conn->response.len = 0;
     conn->response.rconn = conn;
-    mq_enqueue(rpc->res_q,&(conn->response));
+    mq_enqueue(RPC.res_q,&(conn->response));
 }
 
-int mrpc_request_recv( struct minirpc_t* rpc , struct mrpc_request_t* req , void** conn ) {
+int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
     struct mrpc_req_data_t* data;
     int ec;
     int ret;
 
     do {
-        ret = mq_dequeue(rpc->req_q,CAST(void*,&data));
+        ret = mq_dequeue(RPC.req_q,CAST(void*,&data));
         if( ret != 0 ) {
             return -1;
         }
         *conn = data->rconn;
         ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
         if( ec != 0 ) {
-            mrpc_request_parse_fail( rpc, CAST(struct mrpc_conn_t*,*conn));
+            mrpc_request_parse_fail( CAST(struct mrpc_conn_t*,*conn));
         } else {
             break;
         }
@@ -496,9 +500,8 @@ int mrpc_request_recv( struct minirpc_t* rpc , struct mrpc_request_t* req , void
     return 0;
 }
 
-void mrpc_response_send( struct minirpc_t* rpc ,
-                          const struct mrpc_request_t* req ,
-                          void* opaque , const struct mrpc_val_t* result , int ec ) {
+void mrpc_response_send( const struct mrpc_request_t* req ,
+                         void* opaque , const struct mrpc_val_t* result , int ec ) {
     struct mrpc_response_t response;
     struct mrpc_conn_t* conn = CAST(struct mrpc_conn_t*,opaque);
 
@@ -524,28 +527,28 @@ void mrpc_response_send( struct minirpc_t* rpc ,
     conn->response.tag = RESPONSE_TAG_RSP;
 
     /* send back the processor queue */
-    mq_enqueue(rpc->res_q,&(conn->response));
+    mq_enqueue(RPC.res_q,&(conn->response));
 }
 
-void mrpc_response_done( struct minirpc_t* rpc , void* conn ) {
+void mrpc_response_done( void* conn ) {
     struct mrpc_conn_t* rconn=CAST(struct mrpc_conn_t*,conn);
     rconn->response.tag = RESPONSE_TAG_DONE;
     rconn->response.rconn = rconn;
-    mq_enqueue(rpc->res_q,&(rconn->response));
+    mq_enqueue(RPC.res_q,&(rconn->response));
 }
 
 static
-void do_log( struct minirpc_t* minirpc , const char* fmt , ... ) {
+void do_log( const char* fmt , ... ) {
     va_list vlist;
     int ret;
     char buf[1024];
     va_start(vlist,fmt);
     ret=vsprintf(buf,fmt,vlist);
     assert( ret < 1024 );
-    fwrite(buf,1,ret,minirpc->logf);
+    fwrite(buf,1,ret,RPC.logf);
 }
 
-void mrpc_write_log( struct minirpc_t* rpc , const char* fmt , ... ) {
+void mrpc_write_log( const char* fmt , ... ) {
     int ret;
     char buf[1024];
     va_list vlist;
@@ -563,7 +566,7 @@ void mrpc_write_log( struct minirpc_t* rpc , const char* fmt , ... ) {
     memcpy(res->buf,buf,ret+1);
     res->rconn = NULL;
     res->tag = RESPONSE_TAG_LOG;
-    mq_enqueue(rpc->res_q,res);
+    mq_enqueue(RPC.res_q,res);
 }
 
 /* This callback function will be used for each connection */
@@ -589,7 +592,7 @@ int mrpc_do_read( struct net_connection_t* conn , struct mrpc_conn_t* rconn ) {
             rconn->request.raw_data_len = sz;
             rconn->request.rconn = rconn;
             rconn->stage = EXECUTE_RPC;
-            mq_enqueue(rconn->rpc->req_q,&(rconn->request));
+            mq_enqueue(RPC.req_q,&(rconn->request));
             return NET_EV_IDLE;
         } else {
             if( rconn->length < net_buffer_readable_size(&(conn->in)) ) {
@@ -605,7 +608,7 @@ static
 int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
     struct mrpc_conn_t* rconn = CAST(struct mrpc_conn_t*,conn->user_data);
     if( ec != 0 ) {
-        do_log(rconn->rpc,0,"network error:%d",ec);
+        do_log("[MRPC]:network error:%d",ec);
         return NET_EV_CLOSE;
     } else {
         if( ev & NET_EV_EOF ) {
@@ -613,7 +616,7 @@ int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
                 rconn->stage = CONNECTION_FAILED;
                 return NET_EV_IDLE;
             } else {
-                slab_free(&(rconn->rpc->conn_slab),rconn);
+                slab_free(&(RPC.conn_slab),rconn);
                 return NET_EV_CLOSE;
             }
         } else if( ev & NET_EV_READ ) {
@@ -621,7 +624,7 @@ int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
         } else if( ev & NET_EV_WRITE ) {
             assert( rconn->stage == PENDING_REPLY );
             conn->timeout = MRPC_DEFAULT_TIMEOUT_CLOSE;
-            slab_free(&(rconn->rpc->conn_slab),rconn);
+            slab_free(&(RPC.conn_slab),rconn);
             conn->user_data = NULL;
             return NET_EV_CLOSE | NET_EV_TIMEOUT;
         } else {
@@ -640,10 +643,9 @@ int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
 static
 int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
     int i = MRPC_DEFAULT_OUTBAND_SIZE;
-    struct minirpc_t* rpc=CAST(struct minirpc_t*,conn->user_data);
     while( i!= 0 ) {
         void* data;
-        int ret = mq_dequeue(rpc->res_q,&data);
+        int ret = mq_dequeue(RPC.res_q,&data);
         struct mrpc_res_data_t* res;
         if( ret != 0 )
             break;
@@ -653,7 +655,7 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
             if( res->rconn->stage == CONNECTION_FAILED ) {
                 free(res->buf);
                 net_stop(res->rconn->conn);
-                slab_free(&(rpc->conn_slab),res->rconn);
+                slab_free(&(RPC.conn_slab),res->rconn);
                 break;
             } else {
                 res->rconn->stage = PENDING_REPLY;
@@ -665,17 +667,17 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
                 break;
             }
         case RESPONSE_TAG_LOG:
-            do_log( rpc , "%s" , CAST(const char*,res->buf) );
+            do_log( "%s" , CAST(const char*,res->buf) );
             free(res);
             break;
         case RESPONSE_TAG_ERR:
             res->rconn->conn->timeout = MRPC_DEFAULT_TIMEOUT_CLOSE;
             net_post(res->rconn->conn,NET_EV_CLOSE|NET_EV_TIMEOUT);
-            slab_free(&(rpc->conn_slab),res->rconn);
+            slab_free(&(RPC.conn_slab),res->rconn);
             break;
         case RESPONSE_TAG_DONE:
             net_stop(res->rconn->conn);
-            slab_free(&(rpc->conn_slab),res->rconn);
+            slab_free(&(RPC.conn_slab),res->rconn);
             break;
         default: assert(0); break;
         }
@@ -690,13 +692,11 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
 static
 int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t* conn ) {
     if( ec == 0 ) {
-        struct minirpc_t* rpc = CAST(struct minirpc_t*,ser->user_data);
-        struct mrpc_conn_t* rconn = CAST(struct mrpc_conn_t*,slab_malloc(&(rpc->conn_slab)));
+        struct mrpc_conn_t* rconn = CAST(struct mrpc_conn_t*,slab_malloc(&(RPC.conn_slab)));
 
         conn->user_data = rconn;
         rconn->conn = conn;
         rconn->length = 0;
-        rconn->rpc = rpc;
         rconn->stage = PENDING_REQUEST_OR_INDICATION;
         rconn->response.rconn = rconn;
         rconn->request.rconn = rconn;
@@ -708,87 +708,120 @@ int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t*
     return NET_EV_CLOSE;
 }
 
-void mrpc_init() {
-    net_init();
+static 
+void mrpc_stop( int signal ) {
+    signal = signal;
+    if( MRPC_INSTANCE_NUM == 1 ) {
+        net_server_wakeup(&(RPC.server));
+    }
 }
 
-#ifndef NDEBUG
-static int MRPC_INSTANCE_NUM =0;
+#ifdef _WIN32
+BOOL WINAPI mrpc_stop_win32( DWORD val ) {
+    mrpc_stop(0);
+    return TRUE;
+}
+#endif /* _WIN32 */
+
+static 
+void install_signal_handler() {
+#ifdef _WIN32
+    SetConsoleCtrlHandler(mrpc_stop_win32,TRUE);
+#else
+    signal(SIGTERM,mrpc_stop);
+    signal(SIGINT,mrpc_stop);
+    signal(SIGTSTP,mrpc_stop);
 #endif
-
-static
-void
-mrpc_clean( struct minirpc_t* rpc ) {
-    mq_destroy(rpc->req_q);
-    mq_destroy(rpc->res_q);
-    slab_destroy(&(rpc->conn_slab));
-    fclose(rpc->logf);
-    net_server_destroy(&(rpc->server));
-    free(rpc);
 }
 
-struct minirpc_t*
-mrpc_create( const char* logf_name , const char* addr ) {
-    struct minirpc_t* rpc = malloc(sizeof(*rpc));
+int mrpc_init( const char* logf_name , const char* addr ) {
     struct net_connection_t* conn;
     int ret;
 
+    net_init();
     assert( MRPC_INSTANCE_NUM == 0 );
-    VERIFY(rpc);
 
     /* initialize RPC object */
-    slab_create(&(rpc->conn_slab),sizeof(struct mrpc_conn_t),MRPC_DEFAULT_RESERVE_MEMPOOL);
-    rpc->req_q = mq_create();
-    rpc->res_q = mq_create();
-    rpc->logf = fopen(logf_name,"a+");
-    if( rpc->logf == NULL ) {
-        free(rpc);
-        return NULL;
+    slab_create(&(RPC.conn_slab),sizeof(struct mrpc_conn_t),MRPC_DEFAULT_RESERVE_MEMPOOL);
+    RPC.req_q = mq_create();
+    RPC.res_q = mq_create();
+    RPC.logf = fopen(logf_name,"a+");
+    if( RPC.logf == NULL ) {
+        slab_destroy(&(RPC.conn_slab));
+        mq_destroy(RPC.req_q);
+        mq_destroy(RPC.res_q);
+        return -1;
     }
 
     /* initialize the poller callback */
-    ret = net_server_create(&(rpc->server),addr,mrpc_on_accept);
+    net_init();
+    ret = net_server_create(&(RPC.server),addr,mrpc_on_accept);
     if( ret != 0 ) {
-        do_log(rpc,"cannot create server with address:%s",addr);
-        fclose(rpc->logf);
-        free(rpc);
-        return NULL;
+        do_log("[MRPC]:cannot create server with address:%s",addr);
+        fclose(RPC.logf);
+        slab_destroy(&(RPC.conn_slab));
+        mq_destroy(RPC.req_q);
+        mq_destroy(RPC.res_q);
+        return -1;
+
     }
 
     /* initialize poller callback */
-    conn = net_timer(&(rpc->server),mrpc_on_poll,rpc,MRPC_DEFAULT_POLL_TIMEOUT);
+    conn = net_timer(&(RPC.server),mrpc_on_poll,NULL,MRPC_DEFAULT_POLL_TIMEOUT);
     if( conn == NULL ) {
-        do_log(rpc,"cannot create timeout event");
-        mrpc_clean(rpc);
-        return NULL;
+        do_log("[MRPC]:cannot create timeout event");
+        mrpc_clean();
+        return -1;
     }
 
-    /* initialize the user data */
-    rpc->server.user_data = rpc;
+    /* initialize signal handler */
+    install_signal_handler();
 
-#ifndef NDEBUG
+    /* add the reference count */
     ++MRPC_INSTANCE_NUM;
-#endif /* NDEBUG */
-
-    return rpc;
+    return 0;
 }
 
-int mrpc_run( struct minirpc_t * rpc ) {
+void
+mrpc_clean() {
+    assert(MRPC_INSTANCE_NUM == 1);
+    do_log("%s","[MRPC]:MRPC exit successfully!");
+    mq_destroy(RPC.req_q);
+    mq_destroy(RPC.res_q);
+    slab_destroy(&(RPC.conn_slab));
+    fclose(RPC.logf);
+    net_server_destroy(&(RPC.server));
+}
+
+int mrpc_run() {
+    int inter;
     for( ;; ) {
-        if( net_server_poll(&(rpc->server),-1,NULL) < 0 ) {
-            do_log(rpc,"Network error:%s",strerror(errno));
+        if( net_server_poll(&(RPC.server),-1,&inter) < 0 ) {
+            do_log("[MRPC]:Network error:%s",strerror(errno));
             return -1;
+        } else {
+            if( inter ) {
+                /* We are interrupted by the user */
+                do_log("[MRPC]:MINIRPC has been interrupted!");
+                return 1;
+            }
         }
     }
 }
 
-int mrpc_poll( struct minirpc_t * rpc ) {
+int mrpc_poll() {
     int ret;
-    if( (ret = net_server_poll(&(rpc->server),-1,NULL)) < 0 ) {
-        do_log(rpc,"Network error:%s",strerror(errno));
+    int inter;
+    if( (ret = net_server_poll(&(RPC.server),-1,&inter)) < 0 ) {
+        do_log("[MRPC]:Network error:%s",strerror(errno));
         return -1;
     }
-    return ret;
+    if( inter ) {
+        /* We are interrupted by the user */
+        do_log("[MRPC]:MINIRPC has been interrupted!");
+        return 1;
+    } else
+        return 0;
 }
 
 void mrpc_varchar_create( struct mrpc_varchar_t* varchar , const char* str , int own ) {
@@ -955,12 +988,23 @@ int mrpc_request_do_recv( socket_t fd , struct mrpc_response_t* resp ) {
     return ret;
 }
 
+static
+void client_net_init() {
+    static int INIT = 0;
+    if( INIT == 0 ) {
+        net_init();
+        INIT = 1;
+    }
+}
+
 int mrpc_request( const char* addr , int method_type , const char* method_name , struct mrpc_response_t* res , const char* par_fmt , ... ) {
     va_list vl;
     int ret = 0;
     void* seria_data = NULL;
     size_t seria_sz = 0;
     socket_t fd = invalid_socket_handler;
+    /* initialize the network library */
+    client_net_init();
 
     assert( method_type == MRPC_FUNCTION || method_type == MRPC_NOTIFICATION );
 
