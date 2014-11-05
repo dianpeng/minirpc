@@ -161,10 +161,10 @@ int mrpc_response_parse( void* buf , size_t sz , struct mrpc_response_t* r );
  * is received, typically you should check this with size of the expected package. The
  * wire format do encapsulate the wire format length for the package, however, we need
  * to parse it in the partial stream and then do the job. This function is provided to
- * extract the size of package within the partial data. Since no matter it is a request,
- * or a response, the first 4 field (header) are the same. This only function is used to
- * extract out the size of that message package. You could put into any length package and
- * it will return the size of that package or it cannot do so */
+ * extract the size of package within the partial data. You could feed this function with
+ * any length data , once this function figure out how large a package should be , it 
+ * will return 0 , then you just need to loop your read until the full package is received
+ * and then call with other parse routine. */
 
 int mrpc_get_package_size( void* buf , size_t sz , size_t* len );
 
