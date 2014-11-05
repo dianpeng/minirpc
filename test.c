@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_PER_THREAD 50
-#define MAX_THREADS 128
+#define MAX_PER_THREAD 1
+#define MAX_THREADS 64
 
 #ifdef _WIN32
 #include <windows.h>
@@ -32,10 +32,12 @@ void test_body() {
 #ifdef _WIN32
 unsigned int __stdcall simple_pressure_test( void* para ) {
     test_body();
+    return 0;
 }
 #else
 void* simple_pressure_test( void* para ) {
     test_body();
+    return NULL;
 }
 #endif /* _WIN32 */
 
@@ -59,7 +61,8 @@ int main() {
     /* join */
     for( i = 0 ; i < MAX_THREADS ; ++i ) {
 #ifdef _WIN32
-        assert( WaitForSingleObject(ths[i],INFINITE) == WAIT_OBJECT_0 );
+        if( WaitForSingleObject(ths[i],INFINITE) != WAIT_OBJECT_0 )
+            assert(0);
 #else
         assert( pthread_join(this[i],NULL) == 0 );
 #endif /* _WIN32 */

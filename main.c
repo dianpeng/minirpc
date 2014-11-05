@@ -62,7 +62,7 @@ int main() {
         return -1;
     }
 
-    service = mrpc_service_create(128,0,500,NULL);
+    service = mrpc_service_create(128,0,50,NULL);
 
     /* register the service entry */
     mrpc_service_add( service, hello_world_cb, "Hello World", NULL );

@@ -317,6 +317,7 @@ int _wait_for_message( struct mrpc_service_th_t* th ,
                        struct mrpc_request_t* req , void** key ) {
     const int min_slp_tm = th->service->min_slp_tm;
     const int max_slp_tm = th->service->max_slp_tm;
+    const int min_slp_inc = min_slp_tm == 0 ? 1 : min_slp_tm;
 
     int sleep_time = min_slp_tm;
     int loop = 1;
@@ -328,13 +329,15 @@ int _wait_for_message( struct mrpc_service_th_t* th ,
         }
 
         ++loop;
-        sleep_time += loop * min_slp_tm;
+        sleep_time += loop * min_slp_inc;
 
         if( sleep_time > max_slp_tm )
             sleep_time = max_slp_tm;
 
-        if( sleep_time > 0 )
+        if( sleep_time > 10 ) {
             mslp(sleep_time);
+            sleep_time = 0;
+        }
     }
     return 1;
 }
