@@ -318,7 +318,6 @@ int _wait_for_message( struct mrpc_service_th_t* th ,
     const int min_slp_tm = th->service->min_slp_tm;
     const int max_slp_tm = th->service->max_slp_tm;
     const int min_slp_inc = min_slp_tm == 0 ? 1 : min_slp_tm;
-
     int sleep_time = min_slp_tm;
     int loop = 1;
 

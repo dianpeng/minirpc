@@ -10,7 +10,6 @@
 #define MRPC_MAX_RESULT_SIZE 16
 
 #define MRPC_DEFAULT_TIMEOUT_CLOSE 15000
-#define MRPC_DEFAULT_POLL_TIMEOUT 500
 #define MRPC_DEFAULT_OUTBAND_SIZE 100
 #define MRPC_DEFAULT_RESERVE_MEMPOOL 50
 
@@ -119,7 +118,7 @@ enum {
 };
 
 /* initialize the mini-rpc */
-int mrpc_init( const char* logf_name , const char* addr );
+int mrpc_init( const char* logf_name , const char* addr , int polling_time );
 void mrpc_clean();
 
 /* ----------------------------------------

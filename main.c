@@ -57,7 +57,7 @@ int main() {
     struct mrpc_service_t* service;
     int ret;
 
-    if( mrpc_init("log.txt","127.0.0.1:12345") != 0 ) {
+    if( mrpc_init("log.txt","127.0.0.1:12345",10) != 0 ) {
         fprintf(stderr,"Cannot initialize MRPC!");
         return -1;
     }

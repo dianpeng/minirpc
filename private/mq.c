@@ -131,9 +131,9 @@ void clearqueue( struct queue_t* q ) {
 }
 
 struct mq_t {
-    struct queue_t in_queue , out_queue;
+    struct queue_t in_queue,out_queue;
     struct queue_t* fqptr , *bqptr;
-    spinlock_t fr_lk , bk_lk;
+    spinlock_t fr_lk,bk_lk;
 };
 
 /* enqueue operations will only affect the front queue pointer */
@@ -154,7 +154,7 @@ int mq_dequeue( struct mq_t* mq, void** data ) {
     /* get data from the back queue no lock now. */
     struct queue_node_t* n;
     int ret;
-    
+
     /* try to dequeue the data from the queue */
     spinlock_lock(&(mq->bk_lk));
     ret = dequeue(mq->bqptr,&n);
@@ -177,7 +177,7 @@ int mq_dequeue( struct mq_t* mq, void** data ) {
         spinlock_lock(&(mq->bk_lk));
         ret = dequeue(mq->bqptr,&n);
         spinlock_unlock(&(mq->bk_lk));
-        if( ret != 0 ) 
+        if( ret != 0 )
             return -1;
     }
     *data = n->data;

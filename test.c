@@ -18,14 +18,22 @@ typedef HANDLE th_t;
 typedef pthread_t th_t;
 #endif /* _WIN32 */
 
+#define VERIFY(x) \
+    do { \
+        if(!(x)) { \
+            fprintf(stderr,"Fatal:"#x); \
+            abort(); \
+        } \
+    } while(0)
+
 void test_body() {
     int ret;
     struct mrpc_response_t res;
     int i;
     for( i = 0 ; i < MAX_PER_THREAD ; ++i ) {
         ret = mrpc_request( "127.0.0.1:12345" , MRPC_FUNCTION , "Add" , &res , "%u%u" , 1 , 3 );
-        assert( ret == 0 );
-        assert( res.result.value.uinteger == 4 );
+        VERIFY( ret == 0 );
+        VERIFY( res.result.value.uinteger == 4 );
     }
 }
 
@@ -46,25 +54,24 @@ int main() {
     th_t* ths;
     clock_t start,end;
     ths = malloc( MAX_THREADS * sizeof(th_t) );
-    assert( ths );
+    VERIFY( ths );
 
     start = clock();
     for( i = 0 ; i < MAX_THREADS ; ++i ) {
 #ifdef _WIN32
         ths[i] = (th_t)_beginthreadex( NULL , 0 , simple_pressure_test , NULL , 0 , NULL );
-        assert( ths[i] != INVALID_HANDLE_VALUE );
+        VERIFY( ths[i] != INVALID_HANDLE_VALUE );
 #else
-        assert( pthread_create(ths+i,NULL,simple_pressure_test,NULL) == 0 );
+        VERIFY( pthread_create(ths+i,NULL,simple_pressure_test,NULL) == 0 );
 #endif /* _WIN32 */
     }
 
     /* join */
     for( i = 0 ; i < MAX_THREADS ; ++i ) {
 #ifdef _WIN32
-        if( WaitForSingleObject(ths[i],INFINITE) != WAIT_OBJECT_0 )
-            assert(0);
+        VERIFY( WaitForSingleObject(ths[i],INFINITE) == WAIT_OBJECT_0 );
 #else
-        assert( pthread_join(this[i],NULL) == 0 );
+        VERIFY( pthread_join(this[i],NULL) == 0 );
 #endif /* _WIN32 */
     }
 

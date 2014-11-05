@@ -413,6 +413,7 @@ struct minirpc_t {
     struct net_server_t server; /* server for network */
     FILE* logf;
     struct slab_t conn_slab; /* slab for connection */
+    int poll_tm; /* polling time */
 };
 
 enum {
@@ -680,7 +681,7 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
         }
         --i;
     }
-    conn->timeout = MRPC_DEFAULT_POLL_TIMEOUT;
+    conn->timeout = RPC.poll_tm;
     return NET_EV_TIMEOUT;
 }
 
@@ -731,7 +732,7 @@ void install_signal_handler() {
 #endif
 }
 
-int mrpc_init( const char* logf_name , const char* addr ) {
+int mrpc_init( const char* logf_name , const char* addr , int polling_time ) {
     struct net_connection_t* conn;
     int ret;
 
@@ -764,7 +765,8 @@ int mrpc_init( const char* logf_name , const char* addr ) {
     }
 
     /* initialize poller callback */
-    conn = net_timer(&(RPC.server),mrpc_on_poll,NULL,MRPC_DEFAULT_POLL_TIMEOUT);
+    RPC.poll_tm = polling_time;
+    conn = net_timer(&(RPC.server),mrpc_on_poll,NULL,polling_time);
     if( conn == NULL ) {
         do_log("[MRPC]:cannot create timeout event");
         mrpc_clean();

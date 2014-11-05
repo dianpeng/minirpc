@@ -59,16 +59,18 @@ encode_5:
 
 int decode_uint( unsigned int* val , const char* buf , size_t len ) {
     size_t plen = MIN(len,5);
+    if( plen == 0 )
+        return -1;
     *val = buf[0] & 127;
 
 #define RET(X) \
     do { \
-        if( plen == 0 ) \
-            return -1; \
         if( !(buf[0] & (1<<8)) ) \
             return X; \
         ++buf; \
         --plen; \
+        if( plen == 0 ) \
+            return -1; \
     } while(0)
 
     RET(1);
