@@ -133,7 +133,7 @@ void clearqueue( struct queue_t* q ) {
 struct mq_t {
     struct queue_t in_queue , out_queue;
     struct queue_t* fqptr , *bqptr;
-    spinlock_t lk;
+    spinlock_t fr_lk , bk_lk;
 };
 
 /* enqueue operations will only affect the front queue pointer */
@@ -143,26 +143,41 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
     n->data = data;
     VERIFY(n);
     /* lock the queue since we may have contention */
-    spinlock_lock(&(mq->lk));
+    spinlock_lock(&(mq->fr_lk));
     /* insert the data into the front queue now */
     enqueue(mq->fqptr,n);
     /* unlock the spinlock */
-    spinlock_unlock(&(mq->lk));
+    spinlock_unlock(&(mq->fr_lk));
 }
 
 int mq_dequeue( struct mq_t* mq, void** data ) {
     /* get data from the back queue no lock now. */
     struct queue_node_t* n;
-    if( dequeue(mq->bqptr,&n) != 0 ) {
+    int ret;
+    
+    /* try to dequeue the data from the queue */
+    spinlock_lock(&(mq->bk_lk));
+    ret = dequeue(mq->bqptr,&n);
+    spinlock_unlock(&(mq->bk_lk));
+
+
+    if( ret != 0 ) {
         struct queue_t* ptr;
+
         /* not working , we need to swap the queue now */
-        spinlock_lock(&(mq->lk));
+        spinlock_lock(&(mq->bk_lk));
+        spinlock_lock(&(mq->fr_lk));
         ptr = mq->bqptr;
         mq->bqptr = mq->fqptr;
         mq->fqptr = ptr;
-        spinlock_unlock(&(mq->lk));
+        spinlock_unlock(&(mq->fr_lk));
+        spinlock_unlock(&(mq->bk_lk));
+
         /* try to dequeue again */
-        if( dequeue(mq->bqptr,&n) != 0 )
+        spinlock_lock(&(mq->bk_lk));
+        ret = dequeue(mq->bqptr,&n);
+        spinlock_unlock(&(mq->bk_lk));
+        if( ret != 0 ) 
             return -1;
     }
     *data = n->data;
@@ -177,12 +192,14 @@ struct mq_t* mq_create() {
     initqueue(&(ret->out_queue));
     ret->bqptr = &(ret->in_queue);
     ret->fqptr = &(ret->out_queue);
-    spinlock_init(&(ret->lk));
+    spinlock_init(&(ret->fr_lk));
+    spinlock_init(&(ret->bk_lk));
     return ret;
 }
 
 void mq_destroy( struct mq_t* mq ) {
     clearqueue(&(mq->in_queue));
     clearqueue(&(mq->out_queue));
-    spinlock_delete(&(mq->lk));
+    spinlock_delete(&(mq->bk_lk));
+    spinlock_delete(&(mq->fr_lk));
 }

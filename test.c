@@ -3,32 +3,72 @@
 #include <stdio.h>
 #include <assert.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <time.h>
 
-#if 0
+#define MAX_PER_THREAD 50
+#define MAX_THREADS 128
 
-int test_coder() {
-    size_t sz = 18;
-    char buf[9];
-    int ret;
-    ret = encode_size(sz,buf,9);
-    assert( decode_size(&sz,buf,ret) > 0 );
-    assert( sz == 18 );
-    return 0;
-}
-
-int main() {
-    test_coder();
-    return 0;
-}
-
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+typedef HANDLE th_t;
 #else
+#include <pthread.h>
+typedef pthread_t th_t;
+#endif /* _WIN32 */
 
-int main() {
+void test_body() {
     int ret;
     struct mrpc_response_t res;
-    ret = mrpc_request( "127.0.0.1:12345" , MRPC_FUNCTION , "Add" , &res , "%u%u" , 1 , 123123122 );
-    assert(ret == 0);
-    printf("%d",res.result.value.uinteger);
+    int i;
+    for( i = 0 ; i < MAX_PER_THREAD ; ++i ) {
+        ret = mrpc_request( "127.0.0.1:12345" , MRPC_FUNCTION , "Add" , &res , "%u%u" , 1 , 3 );
+        assert( ret == 0 );
+        assert( res.result.value.uinteger == 4 );
+    }
+}
+
+#ifdef _WIN32
+unsigned int __stdcall simple_pressure_test( void* para ) {
+    test_body();
+}
+#else
+void* simple_pressure_test( void* para ) {
+    test_body();
+}
+#endif /* _WIN32 */
+
+int main() {
+    int i;
+    th_t* ths;
+    clock_t start,end;
+    ths = malloc( MAX_THREADS * sizeof(th_t) );
+    assert( ths );
+
+    start = clock();
+    for( i = 0 ; i < MAX_THREADS ; ++i ) {
+#ifdef _WIN32
+        ths[i] = (th_t)_beginthreadex( NULL , 0 , simple_pressure_test , NULL , 0 , NULL );
+        assert( ths[i] != INVALID_HANDLE_VALUE );
+#else
+        assert( pthread_create(ths+i,NULL,simple_pressure_test,NULL) == 0 );
+#endif /* _WIN32 */
+    }
+
+    /* join */
+    for( i = 0 ; i < MAX_THREADS ; ++i ) {
+#ifdef _WIN32
+        assert( WaitForSingleObject(ths[i],INFINITE) == WAIT_OBJECT_0 );
+#else
+        assert( pthread_join(this[i],NULL) == 0 );
+#endif /* _WIN32 */
+    }
+
+    end = clock();
+
+    printf("Rough time:%d\n",(end-start)/CLOCKS_PER_SEC);
+
     return 0;
 }
-#endif
+

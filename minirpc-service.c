@@ -312,10 +312,6 @@ struct mrpc_service_t {
     size_t max_slp_tm; /* max sleep timeout */
 };
 
-
-#define SERVICE_MAX_SLEEP_TIME 100
-#define SERVICE_MIN_SLEEP_TIME 1000
-
 static
 int _wait_for_message( struct mrpc_service_th_t* th ,
                        struct mrpc_request_t* req , void** key ) {
@@ -337,7 +333,8 @@ int _wait_for_message( struct mrpc_service_th_t* th ,
         if( sleep_time > max_slp_tm )
             sleep_time = max_slp_tm;
 
-        mslp(sleep_time);
+        if( sleep_time > 0 )
+            mslp(sleep_time);
     }
     return 1;
 }
@@ -401,8 +398,8 @@ mrpc_service_create( size_t sz , size_t min_slp_time , size_t max_slp_time , voi
     ret->th_pool.th_sz = 0;
 
     ret->udata = opaque;
-    ret->max_slp_tm = max_slp_time == 0 ? SERVICE_MAX_SLEEP_TIME : max_slp_time;
-    ret->min_slp_tm = min_slp_time == 0 ? SERVICE_MIN_SLEEP_TIME : min_slp_time;
+    ret->max_slp_tm = max_slp_time;
+    ret->min_slp_tm = min_slp_time;
 
     return ret;
 }

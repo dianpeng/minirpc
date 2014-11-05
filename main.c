@@ -62,14 +62,14 @@ int main() {
         return -1;
     }
 
-    service = mrpc_service_create(128,0,0,NULL);
+    service = mrpc_service_create(128,0,500,NULL);
 
     /* register the service entry */
     mrpc_service_add( service, hello_world_cb, "Hello World", NULL );
     mrpc_service_add( service, addition_cb, "Add", NULL );
 
     /* start the service in backend thread */
-    mrpc_service_run_remote(service,4);
+    mrpc_service_run_remote(service,32);
 
     /* start working now */
     ret = mrpc_run();
