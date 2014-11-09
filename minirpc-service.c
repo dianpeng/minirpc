@@ -312,35 +312,6 @@ struct mrpc_service_t {
     size_t max_slp_tm; /* max sleep timeout */
 };
 
-static
-int _wait_for_message( struct mrpc_service_th_t* th ,
-                       struct mrpc_request_t* req , void** key ) {
-    const int min_slp_tm = th->service->min_slp_tm;
-    const int max_slp_tm = th->service->max_slp_tm;
-    const int min_slp_inc = min_slp_tm == 0 ? 1 : min_slp_tm;
-    int sleep_time = min_slp_tm;
-    int loop = 1;
-
-    while( !th->exit ) {
-        int ret = mrpc_request_recv(req,key);
-        if( ret == 0 ) {
-            return 0;
-        }
-
-        ++loop;
-        sleep_time += loop * min_slp_inc;
-
-        if( sleep_time > max_slp_tm )
-            sleep_time = max_slp_tm;
-
-        if( sleep_time > 10 ) {
-            mslp(sleep_time);
-            sleep_time = 0;
-        }
-    }
-    return 1;
-}
-
 /* Thread creation is typically a memory barrier , so after creating thread
  * all the data that is visible to this thread, but not including the data
  * modification happens right after the thread creation */
@@ -353,8 +324,8 @@ _mrpc_service_th_cb( void* par ) {
         void* key;
         struct mrpc_request_t req;
         const struct mrpc_service_entry_t* func_entry;
-        if( _wait_for_message(th,&req,&key) != 0 )
-            break;
+        if( mrpc_request_recv(&req,&key) != 0 )
+            continue;
         /* look up the service and then start to execute */
         func_entry = mrpc_stbl_query( &(th->service->stable), req.method_name );
         if( func_entry == NULL ) {
@@ -425,7 +396,7 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
     void* key;
     struct mrpc_request_t req;
     const struct mrpc_service_entry_t* func_entry;
-    if( mrpc_request_recv(&req,&key) == 0 ) {
+    if( mrpc_request_try_recv(&req,&key) == 0 ) {
         /* look up the service and then start to execute */
         func_entry = mrpc_stbl_query( &(service->stable), req.method_name );
         if( func_entry == NULL ) {

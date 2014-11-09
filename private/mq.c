@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 
+
 /* This message queue is not a lock-free data structure since I am not smart enough to write one :)
  * It is a still non wait-free queue. However, with some modification to make the contention has
  * really small time window. The core is that we have two internal queues instead of one, one for dequeue,
@@ -22,58 +23,69 @@
 
 #ifdef _WIN32
 #include <Windows.h>
-typedef CRITICAL_SECTION spinlock_t;
+#ifdef WINVER
+#if WINVER < 0x0600
+#error "The code must be compiled at least Windows Vista"
+#endif /* WINVER */
+#endif /* WINVER */
+
+typedef CRITICAL_SECTION mutex_t;
 static
-void spinlock_init( spinlock_t* l ) {
+void mutex_init( mutex_t* l ) {
     InitializeCriticalSectionAndSpinCount(l,2000);
 }
 static
-void spinlock_lock( spinlock_t* l ) {
+void mutex_lock( mutex_t* l ) {
     EnterCriticalSection(l);
 }
 static
-void spinlock_unlock( spinlock_t* l ) {
+void mutex_unlock( mutex_t* l ) {
     LeaveCriticalSection(l);
 }
+static 
+int mutex_try_lock( mutex_t* l ) {
+    return TryEnterCriticalSection(l) == TRUE ? 0 : -1;
+}
+
 static
-void spinlock_delete( spinlock_t* l ) {
+void mutex_delete( mutex_t* l ) {
     DeleteCriticalSection(l);
 }
+
+/*
+ * Condition variable on Windows. We don't provide implementation
+ * for supporting less than Windows XP version. Use native CV is 
+ * fine here 
+ */
+
+typedef CONDITION_VARIABLE cond_t;
+void cond_init( cond_t* c ) {
+    InitializeConditionVariable(c);
+}
+
+void cond_wait( cond_t* c , mutex_t* m , int msec ) {
+#ifndef NDEBUG
+    BOOL bret = 
+#endif /* NDEBUG */
+        SleepConditionVariableCS(c,m, msec < 0 ? INFINITE : (DWORD)(msec));
+    assert(bret);
+}
+
+void cond_signal_one( cond_t* c  ) {
+    WakeConditionVariable(c);
+}
+
+void cond_signal_all( cond_t* c ) {
+    WakeAllConditionVariable(c);
+}
+
+void cond_delete( cond_t* c ) {
+    c=c;
+}
+
 #else
 #include <pthread.h>
-typedef pthread_spinlock_t spinlock_t;
-static
-void spinlock_init( spinlock_t* lk ) {
-#ifndef NDEBUG
-    int ret =
-#endif /* NDEBUG */
-        pthread_spin_init(lk,PTHREAD_PROCESS_PRIVATE);
-    assert( ret == 0 );
-}
-static
-void spinlock_delete( spinlock_t* lk ) {
-#ifndef NDEBUG
-    int ret =
-#endif /* NDEBUG */
-        pthread_spin_destroy(lk);
-    assert( ret == 0 );
-}
-static
-void spinlock_lock( spinlock_t* lk ) {
-#ifndef NDEBUG
-    int ret =
-#endif /* NDEBUG */
-        pthread_spin_lock(lk);
-    assert( ret == 0 );
-}
-static
-void spinlock_unlock( spinlock_t* lk ) {
-#ifndef NDEBUG
-    int ret =
-#endif /* NDEBUG */
-        pthread_spin_unlock(lk);
-    assert( ret == 0 );
-}
+typedef pthread_mutex_t mutex_t;
 
 #endif /* _WIN32 */
 
@@ -131,9 +143,9 @@ void clearqueue( struct queue_t* q ) {
 }
 
 struct mq_t {
-    struct queue_t in_queue,out_queue;
-    struct queue_t* fqptr , *bqptr;
-    spinlock_t fr_lk,bk_lk;
+    struct queue_t q;
+    mutex_t lk;
+    cond_t c;
 };
 
 /* enqueue operations will only affect the front queue pointer */
@@ -143,63 +155,84 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
     n->data = data;
     VERIFY(n);
     /* lock the queue since we may have contention */
-    spinlock_lock(&(mq->fr_lk));
+    mutex_lock(&(mq->lk));
     /* insert the data into the front queue now */
-    enqueue(mq->fqptr,n);
+    enqueue(&(mq->q),n);
     /* unlock the spinlock */
-    spinlock_unlock(&(mq->fr_lk));
+    mutex_unlock(&(mq->lk));
+    /* notify the mq_dequeue */
+    cond_signal_one(&(mq->c));
 }
 
-int mq_dequeue( struct mq_t* mq, void** data ) {
+#define MAX_SPIN 10
+
+void mq_dequeue( struct mq_t* mq, void** data ) {
     /* get data from the back queue no lock now. */
     struct queue_node_t* n;
     int ret;
 
     /* try to dequeue the data from the queue */
-    spinlock_lock(&(mq->bk_lk));
-    ret = dequeue(mq->bqptr,&n);
-    spinlock_unlock(&(mq->bk_lk));
-
+    mutex_lock(&(mq->lk));
+    ret = dequeue(&(mq->q),&n);
+    mutex_unlock(&(mq->lk));
 
     if( ret != 0 ) {
-        struct queue_t* ptr;
+        /* here means that we have already find out that the queue is empty.
+      we can simply do a spin here to avoid fast sleep here */
+        int i = 0;
+        while( 1 ) {
+            /* Try to do the dequeue */
+            if( mutex_try_lock(&(mq->lk)) == 0 ) {
+                if( dequeue(&(mq->q),&n) ==0 ) {
+                    mutex_unlock(&(mq->lk));
+                    goto done;
+                } else {
+                    mutex_unlock(&(mq->lk));
+                }
+            }
+            if( ++i == MAX_SPIN ) {
+                /* sleep */
+                mutex_lock(&(mq->lk));
+                while( dequeue(&mq->q,&n) != 0 ) {
+                    cond_wait(&(mq->c),&(mq->lk),-1);
+                }
+                mutex_unlock(&(mq->lk));
+                goto done;
+            }
+        }
+    } 
 
-        /* not working , we need to swap the queue now */
-        spinlock_lock(&(mq->bk_lk));
-        spinlock_lock(&(mq->fr_lk));
-        ptr = mq->bqptr;
-        mq->bqptr = mq->fqptr;
-        mq->fqptr = ptr;
-        spinlock_unlock(&(mq->fr_lk));
-        spinlock_unlock(&(mq->bk_lk));
-
-        /* try to dequeue again */
-        spinlock_lock(&(mq->bk_lk));
-        ret = dequeue(mq->bqptr,&n);
-        spinlock_unlock(&(mq->bk_lk));
-        if( ret != 0 )
-            return -1;
-    }
+done:
     *data = n->data;
     free(n);
-    return 0;
+}
+
+int mq_try_dequeue( struct mq_t* mq , void** data ) {
+    struct queue_node_t* n;
+    mutex_lock(&(mq->lk));
+    if( dequeue(&(mq->q),&n) == 0 ) {
+        *data = n->data;
+        free(n);
+        mutex_unlock(&(mq->lk));
+        return 0;
+    } else {
+        mutex_unlock(&(mq->lk));
+        return -1;
+    }
 }
 
 struct mq_t* mq_create() {
     struct mq_t* ret = malloc( sizeof(*ret) );
     VERIFY(ret);
-    initqueue(&(ret->in_queue));
-    initqueue(&(ret->out_queue));
-    ret->bqptr = &(ret->in_queue);
-    ret->fqptr = &(ret->out_queue);
-    spinlock_init(&(ret->fr_lk));
-    spinlock_init(&(ret->bk_lk));
+    initqueue(&(ret->q));
+    cond_init(&(ret->c));
+    mutex_init(&(ret->lk));
     return ret;
 }
 
 void mq_destroy( struct mq_t* mq ) {
-    clearqueue(&(mq->in_queue));
-    clearqueue(&(mq->out_queue));
-    spinlock_delete(&(mq->bk_lk));
-    spinlock_delete(&(mq->fr_lk));
+    clearqueue(&(mq->q));
+    mutex_delete(&(mq->lk));
+    cond_delete(&(mq->c));
+    free(mq);
 }

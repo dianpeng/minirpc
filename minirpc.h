@@ -13,7 +13,7 @@
 #define MRPC_DEFAULT_OUTBAND_SIZE 100
 #define MRPC_DEFAULT_RESERVE_MEMPOOL 50
 
-/* method type */
+/* Method type */
 enum {
     MRPC_FUNCTION = 1,
     MRPC_NOTIFICATION = 2
@@ -117,7 +117,7 @@ enum {
     MRPC_EC_FUNCTION_INVALID_PARAMETER_TYPE
 };
 
-/* initialize the mini-rpc */
+/* Initialize the mini-rpc */
 int mrpc_init( const char* logf_name , const char* addr , int polling_time );
 void mrpc_clean();
 
@@ -129,6 +129,13 @@ int mrpc_poll();
 
 /* All the following functions are thread safe */
 
+/* The try recv function will _NOT_ block , so it may return a negative
+ * number indicate that a message is not available (possibly because no
+ * data is there,or an error is there) */
+int mrpc_request_try_recv( struct mrpc_request_t* req , void** );
+/* This function will block until a package is received, however it still
+ * can return negative value because of the package is broken. This function
+ * is good to call in a remote thread */
 int mrpc_request_recv( struct mrpc_request_t* req , void** );
 void mrpc_response_send( const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
 /* This function is used to finish a indication request */
@@ -140,23 +147,23 @@ void mrpc_write_log( const char* fmt , ... );
  * Client side
  * --------------------------------------*/
 
-/* mini RPC request function
+/* Mini RPC request function
  * blocking version API */
 int mrpc_request( const char* addr, int method_type , const char* method_name ,
                   struct mrpc_response_t* res , const char* par_fmt , ... );
 
-/* this function is used to serialize the data into the buffer. the returned value is
+/* This function is used to serialize the data into the buffer. the returned value is
  * malloced on heap, after sending it, the user needs to call free function to free it */
 void* mrpc_request_serialize( size_t* len , int method_type, const char* method_name , const char* par_fmt, ... );
 
-/* deserialize the input data into a struct mrpc_response_t object */
+/* Deserialize the input data into a struct mrpc_response_t object */
 int mrpc_response_parse( void* buf , size_t sz , struct mrpc_response_t* r );
 
 /* ----------------------------------------
  * Utility Function
  * --------------------------------------*/
 
-/* this function is used for choking out the size of a specific package. Suppose that
+/* This function is used for choking out the size of a specific package. Suppose that
  * you get some data from the network, then you want to figure out that if a full package
  * is received, typically you should check this with size of the expected package. The
  * wire format do encapsulate the wire format length for the package, however, we need

@@ -476,13 +476,13 @@ void mrpc_request_parse_fail( struct mrpc_conn_t* conn ) {
     mq_enqueue(RPC.res_q,&(conn->response));
 }
 
-int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
+int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
     struct mrpc_req_data_t* data;
     int ec;
     int ret;
 
     do {
-        ret = mq_dequeue(RPC.req_q,CAST(void*,&data));
+        ret = mq_try_dequeue(RPC.req_q,CAST(void*,&data));
         if( ret != 0 ) {
             return -1;
         }
@@ -495,6 +495,20 @@ int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
         }
     } while(1);
 
+    return 0;
+}
+
+int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
+    struct mrpc_req_data_t* data;
+    int ec;
+    int ret;
+    mq_dequeue(RPC.req_q,CAST(void*,&data));
+    *conn = data->rconn;
+    ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
+    if( ec != 0 ) {
+        mrpc_request_parse_fail( CAST(struct mrpc_conn_t*,*conn));
+        return -1;
+    } 
     return 0;
 }
 
@@ -643,7 +657,7 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
     int i = MRPC_DEFAULT_OUTBAND_SIZE;
     while( i!= 0 ) {
         void* data;
-        int ret = mq_dequeue(RPC.res_q,&data);
+        int ret = mq_try_dequeue(RPC.res_q,&data);
         struct mrpc_res_data_t* res;
         if( ret != 0 )
             break;
