@@ -1,5 +1,5 @@
-#include "private/coder.h"
-#include "minirpc.h"
+#include "../private/coder.h"
+#include "../minirpc.h"
 #include <stdio.h>
 #include <assert.h>
 #include <limits.h>

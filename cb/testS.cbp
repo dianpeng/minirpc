@@ -36,7 +36,7 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename="../server.c">
+		<Unit filename="../examples/server.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Extensions>

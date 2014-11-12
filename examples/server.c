@@ -1,5 +1,5 @@
-#include "minirpc.h"
-#include "minirpc-service.h"
+#include "../minirpc.h"
+#include "../minirpc-service.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
