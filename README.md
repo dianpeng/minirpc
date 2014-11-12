@@ -1,9 +1,9 @@
 # MINI RPC
 
 ## Introduction
-(1) Small RPC library, typically multi-KBs. 
-(2) Self contained library, no external library needed.
-(3) Fast and simple for using, the protocol is binary based and has very small overhead , also the API is
+	(1) Small RPC library, typically multi-KBs. 
+	(2) Self contained library, no external library needed.
+	(3) Fast and simple for using, the protocol is binary based and has very small overhead , also the API is
     minimized to provide absolute needed function for user.
 	
 ## Usage:
