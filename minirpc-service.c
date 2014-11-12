@@ -420,8 +420,10 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
 }
 
 void mrpc_service_run( struct mrpc_service_t* service ) {
-    for(;;)
-        mrpc_service_run_once(service);
+    struct mrpc_service_th_t th;
+    th.exit = false;
+    th.service = service;
+    _mrpc_service_th_cb(&th);
 }
 
 int mrpc_service_run_remote( struct mrpc_service_t* service, int thread_sz ) {
