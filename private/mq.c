@@ -1,24 +1,8 @@
 #include "mq.h"
 #include "conf.h"
 
-#include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-
-
-/* This message queue is not a lock-free data structure since I am not smart enough to write one :)
- * It is a still non wait-free queue. However, with some modification to make the contention has
- * really small time window. The core is that we have two internal queues instead of one, one for dequeue,
- * one for enqueue. The user just call mq_dequeue, until the current dequeued message queue runs out of
- * its resources. Then it will try to SWAP the queue, this SWAP operation can introduce contention and
- * it will ONLY happened in the dequeue side, so it means, the enqueue side will NEVER try to swap
- * the queue. But it needs to grab a lock to let the dequeue side knows that I am working . The key here
- * is that I use a spin lock. Why spin lock works here ? It is because, in most cases, such SWAP should be
- * very quick. Since th mq_enqueue side is just insert pointer, it may have memory allocation , but not
- * inside of the lock scope. And also swap the pointer is _VERY_ fast. So a spin lock works here.
- * On Windows, no spin lock is here, but Critical Section initialized with spin count may lead better performance
- * when unexpected long lock hold is there, so we just use critical section ; on Posix compatible platform,
- * pthread_spinlock is the candidate there. No pthread_mutex since futex is definitely working at kernel level. */
 
 #ifdef _WIN32
 #include <Windows.h>
