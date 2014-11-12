@@ -16,4 +16,4 @@ $(NAME): minirpc
 	ar rcs libminirpc.a $(OBJ)
 
 clean:
-	rm -f *.o *.a
+	rm -f *.o *.a private/*.o
