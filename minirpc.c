@@ -438,6 +438,7 @@ struct mrpc_client_req {
     void* req_data;
     size_t sz;
     char addr[22]; /* MAX IP:PORT 255.255.255.255:65535 (21 digits)*/
+    int timeout;
 }; 
 
 enum {
@@ -838,7 +839,10 @@ int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
             break;
         case MRPC_CLIENT_REQUEST: {
                 struct net_connection_t* conn =
-                    net_connection(&(RPC.server),mrpc_on_client,poll_data->value.cli_req.addr,500);
+                    net_connection(&(RPC.server),mrpc_on_client,
+                    poll_data->value.cli_req.addr,
+                    poll_data->value.cli_req.timeout);
+
                 conn->user_data = poll_data;
                 break;
             }
@@ -1069,8 +1073,9 @@ fail:
 }
 
 /* async send */
-int mrpc_request_async( const char* addr, int method_type , const char* method_name ,
-                       mrpc_request_async_cb cb , void* udata , const char* par_fmt , ... ) {
+int mrpc_request_async( mrpc_request_async_cb cb , void* udata , int timeout, 
+                        const char* addr, int method_type , const char* method_name ,
+                        const char* par_fmt , ... ) {
 
     void* req_data;
     size_t data_len;
@@ -1094,6 +1099,7 @@ int mrpc_request_async( const char* addr, int method_type , const char* method_n
     req->value.cli_req.udata = udata;
     req->value.cli_req.cb = cb;
     strcpy(req->value.cli_req.addr,addr);
+    req->value.cli_req.timeout = timeout;
 
     /* sending into the internal queue */
     mq_enqueue( RPC.poll_q , req );

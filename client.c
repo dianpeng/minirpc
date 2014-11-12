@@ -20,7 +20,8 @@ clock_t START;
 
 static
 void mrpc_req_cb( const struct mrpc_response_t* res , void* data ) {
-    assert(res->result.value.uinteger == 4);
+    assert( res != NULL );
+    assert( res->result.value.uinteger == 4 );
     --TIMES;
     printf(".");
     if( TIMES == 0 ) {
@@ -39,13 +40,14 @@ thread_main(void* par) {
     int i;
     for( i = 0 ; i < MAX_REQUEST ; ++i ) {
         assert ( mrpc_request_async(
-            "127.0.0.1:12345",
-            MRPC_FUNCTION,
-            "Add",
-            mrpc_req_cb,
-            NULL,
-            "%u%u",
-            1,3) == 0 );
+                    mrpc_req_cb,
+                    NULL,
+                    5000,
+                    "127.0.0.1:12345",
+                    MRPC_FUNCTION,
+                    "Add",
+                    "%u%u",
+                    1,3) == 0 );
     }
 #ifdef _WIN32
     START = clock();

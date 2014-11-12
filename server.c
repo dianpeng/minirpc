@@ -78,7 +78,7 @@ int main() {
         /* Handle error */
         fprintf(stderr,"MRPC Error!");
     } else {
-        /* User interruption */ 
+        /* User interruption */
         fprintf(stderr,"User interruption!");
     }
 
