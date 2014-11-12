@@ -60,9 +60,6 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../private/network.h" />
-		<Unit filename="../test.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Extensions>
 			<code_completion />
 			<debugger />

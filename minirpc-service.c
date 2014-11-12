@@ -9,19 +9,10 @@
 #include <windows.h>
 #include <process.h>
 typedef HANDLE th_t;
-static
-void
-mslp( int millseconds ) {
-    Sleep(millseconds);
-}
 #else
 #include <pthread.h>
 #include <unistd.h>
 typedef pthread_t th_t;
-static
-void mslp( int milliseconds ) {
-    usleep( milliseconds*1000 );
-}
 #endif
 
 struct mrpc_service_entry_t;

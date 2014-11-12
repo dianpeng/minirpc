@@ -10,6 +10,9 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\server.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1880C962-CEE4-4E98-BC41-9D2E0336267B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -80,9 +83,6 @@
       <AdditionalDependencies>Ws2_32.lib;minirpc.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\main.c" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

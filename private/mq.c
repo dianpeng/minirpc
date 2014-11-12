@@ -42,7 +42,7 @@ static
 void mutex_unlock( mutex_t* l ) {
     LeaveCriticalSection(l);
 }
-static 
+static
 int mutex_try_lock( mutex_t* l ) {
     return TryEnterCriticalSection(l) == TRUE ? 0 : -1;
 }
@@ -54,31 +54,36 @@ void mutex_delete( mutex_t* l ) {
 
 /*
  * Condition variable on Windows. We don't provide implementation
- * for supporting less than Windows XP version. Use native CV is 
- * fine here 
+ * for supporting less than Windows XP version. Use native CV is
+ * fine here
  */
 
 typedef CONDITION_VARIABLE cond_t;
+static
 void cond_init( cond_t* c ) {
     InitializeConditionVariable(c);
 }
 
+static
 void cond_wait( cond_t* c , mutex_t* m , int msec ) {
 #ifndef NDEBUG
-    BOOL bret = 
+    BOOL bret =
 #endif /* NDEBUG */
         SleepConditionVariableCS(c,m, msec < 0 ? INFINITE : (DWORD)(msec));
     assert(bret);
 }
 
+static
 void cond_signal_one( cond_t* c  ) {
     WakeConditionVariable(c);
 }
 
+static
 void cond_signal_all( cond_t* c ) {
     WakeAllConditionVariable(c);
 }
 
+static
 void cond_delete( cond_t* c ) {
     c=c;
 }
@@ -86,6 +91,97 @@ void cond_delete( cond_t* c ) {
 #else
 #include <pthread.h>
 typedef pthread_mutex_t mutex_t;
+typedef pthread_cond_t cond_t;
+
+static
+void mutex_init( mutex_t* m ) {
+
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_mutex_init(m,NULL);
+    assert( ret == 0 );
+
+}
+
+static
+void mutex_lock( mutex_t* m ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_mutex_lock(m);
+    assert( ret == 0 );
+
+}
+
+static
+int mutex_try_lock( mutex_t* m ) {
+    return pthread_mutex_trylock(m) == 0 ? 0 : -1;
+}
+
+static
+void mutex_unlock( mutex_t* m ) {
+    pthread_mutex_unlock(m);
+}
+
+static
+void mutex_delete( mutex_t* m ) {
+    pthread_mutex_destroy(m);
+}
+
+static
+void cond_init( cond_t* c ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_cond_init(c,NULL);
+    assert( ret == 0 );
+}
+
+static
+void cond_wait( cond_t* c , mutex_t* l , int msec ) {
+    struct timespec tv;
+#ifndef NDEBUG
+    int ret;
+#endif /* NDEBUG */
+    if( msec != -1 ) {
+        tv.tv_sec = msec/1000;
+        tv.tv_nsec = (msec%1000)*1000;
+    }
+#ifndef NDEBUG
+    ret =
+#endif /*NDEBUG*/
+    pthread_cond_timedwait(c,l,&tv);
+    assert( ret == 0 );
+
+}
+
+static
+void cond_signal_one( cond_t* c ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_cond_signal(c);
+    assert( ret == 0 );
+}
+
+static
+void cond_signal_all( cond_t* c ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_cond_broadcast(c);
+    assert( ret == 0 );
+}
+
+static
+void cond_delete( cond_t* c ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_cond_destroy(c);
+    assert( ret == 0 );
+}
 
 #endif /* _WIN32 */
 
@@ -200,7 +296,7 @@ void mq_dequeue( struct mq_t* mq, void** data ) {
                 goto done;
             }
         }
-    } 
+    }
 
 done:
     *data = n->data;

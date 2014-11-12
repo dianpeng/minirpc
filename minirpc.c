@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
+#include <signal.h>
 
 /* Wire protocol */
 
@@ -501,14 +502,13 @@ int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
 int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
     struct mrpc_req_data_t* data;
     int ec;
-    int ret;
     mq_dequeue(RPC.req_q,CAST(void*,&data));
     *conn = data->rconn;
     ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
     if( ec != 0 ) {
         mrpc_request_parse_fail( CAST(struct mrpc_conn_t*,*conn));
         return -1;
-    } 
+    }
     return 0;
 }
 
@@ -720,7 +720,7 @@ int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t*
     return NET_EV_CLOSE;
 }
 
-static 
+static
 void mrpc_stop( int signal ) {
     signal = signal;
     if( MRPC_INSTANCE_NUM == 1 ) {
@@ -735,7 +735,7 @@ BOOL WINAPI mrpc_stop_win32( DWORD val ) {
 }
 #endif /* _WIN32 */
 
-static 
+static
 void install_signal_handler() {
 #ifdef _WIN32
     SetConsoleCtrlHandler(mrpc_stop_win32,TRUE);
