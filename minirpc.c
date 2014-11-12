@@ -768,6 +768,7 @@ int mrpc_on_client( int ev , int ec , struct net_connection_t* conn ) {
             goto fail;
         }
     }
+
 fail:
     /* network failure */
     if( req != NULL ) {
