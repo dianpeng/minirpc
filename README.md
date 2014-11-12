@@ -15,8 +15,8 @@ A small RPC implementation.
     as slice. Overhead per packet is very small.
 	
 ## Tutorial
-Issue a request on client:
 ```
+	Issue a request on client:
 	API:
 	int mrpc_request( const char* addr, int method_type , const char* method_name ,
                   struct mrpc_response_t* res , const char* par_fmt , ... );
