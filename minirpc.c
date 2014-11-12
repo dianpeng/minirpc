@@ -410,7 +410,7 @@ mrpc_response_parse( void* data , size_t length , struct mrpc_response_t* respon
 
 struct minirpc_t {
     struct mq_t* req_q; /* request queue */
-    struct mq_t* res_q; /* response queue */
+    struct mq_t* poll_q; /* response queue */
     struct net_server_t server; /* server for network */
     FILE* logf;
     struct slab_t conn_slab; /* slab for connection */
@@ -425,10 +425,32 @@ enum {
 };
 
 struct mrpc_res_data_t {
+    int tag;
     void* buf;
     size_t len;
-    int tag;
     struct mrpc_conn_t* rconn;
+};
+
+/* This is for async connection */
+struct mrpc_client_req {
+    mrpc_request_async_cb cb;
+    void* udata;
+    void* req_data;
+    size_t sz;
+    char addr[22]; /* MAX IP:PORT 255.255.255.255:65535 (21 digits)*/
+}; 
+
+enum {
+    MRPC_RESPONSE_DATA,
+    MRPC_CLIENT_REQUEST
+};
+
+struct mrpc_poll_data_t {
+    int type;
+    union {
+        struct mrpc_res_data_t resp;
+        struct mrpc_client_req cli_req;
+    } value;
 };
 
 struct mrpc_req_data_t {
@@ -442,15 +464,17 @@ struct mrpc_conn_t {
     size_t length;
     struct net_connection_t* conn;
     /* This 2 areas are embedded here in which it makes our code faster */
-    struct mrpc_res_data_t response;
+    struct mrpc_poll_data_t poll_data;
     struct mrpc_req_data_t request;
 };
+
 
 enum {
     RESPONSE_TAG_RSP,
     RESPONSE_TAG_LOG,
     RESPONSE_TAG_ERR,
-    RESPONSE_TAG_DONE
+    RESPONSE_TAG_DONE,
+    REQUEST_TAG_SEND /* for client async sending */
 };
 
 int mrpc_get_package_size( void* buf , size_t sz , size_t* len )  {
@@ -470,11 +494,12 @@ static int MRPC_INSTANCE_NUM =0;
 
 static
 void mrpc_request_parse_fail( struct mrpc_conn_t* conn ) {
-    conn->response.tag = RESPONSE_TAG_ERR;
-    conn->response.buf = NULL;
-    conn->response.len = 0;
-    conn->response.rconn = conn;
-    mq_enqueue(RPC.res_q,&(conn->response));
+    conn->poll_data.type = MRPC_RESPONSE_DATA;
+    conn->poll_data.value.resp.tag = RESPONSE_TAG_ERR;
+    conn->poll_data.value.resp.buf = NULL;
+    conn->poll_data.value.resp.len = 0;
+    conn->poll_data.value.resp.rconn = conn;
+    mq_enqueue(RPC.poll_q,&(conn->poll_data));
 }
 
 int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
@@ -534,19 +559,21 @@ void mrpc_response_send( const struct mrpc_request_t* req ,
         response.result = *result;
 
     /* serialization of the response objects */
-    conn->response.buf = mrpc_response_serialize(&response,&conn->response.len);
-    conn->response.rconn = conn;
-    conn->response.tag = RESPONSE_TAG_RSP;
+    conn->poll_data.type = MRPC_RESPONSE_DATA;
+    conn->poll_data.value.resp.buf = mrpc_response_serialize(&response,&conn->poll_data.value.resp.len);
+    conn->poll_data.value.resp.rconn = conn;
+    conn->poll_data.value.resp.tag = RESPONSE_TAG_RSP;
 
     /* send back the processor queue */
-    mq_enqueue(RPC.res_q,&(conn->response));
+    mq_enqueue(RPC.poll_q,&(conn->poll_data));
 }
 
 void mrpc_response_done( void* conn ) {
     struct mrpc_conn_t* rconn=CAST(struct mrpc_conn_t*,conn);
-    rconn->response.tag = RESPONSE_TAG_DONE;
-    rconn->response.rconn = rconn;
-    mq_enqueue(RPC.res_q,&(rconn->response));
+    rconn->poll_data.type = MRPC_RESPONSE_DATA;
+    rconn->poll_data.value.resp.tag = RESPONSE_TAG_DONE;
+    rconn->poll_data.value.resp.rconn = rconn;
+    mq_enqueue(RPC.poll_q,&(rconn->poll_data));
 }
 
 static
@@ -564,7 +591,7 @@ void mrpc_write_log( const char* fmt , ... ) {
     int ret;
     char buf[1024];
     va_list vlist;
-    struct mrpc_res_data_t* res;
+    struct mrpc_poll_data_t* res;
 
     va_start(vlist,fmt);
     ret = vsprintf(buf,fmt,vlist);
@@ -573,12 +600,14 @@ void mrpc_write_log( const char* fmt , ... ) {
 
     res = malloc(sizeof(*res) +ret+1);
     VERIFY(res);
-    res->buf = CAST(char*,res)+sizeof(*res);
-    res->len = CAST(size_t,res+1);
-    memcpy(res->buf,buf,ret+1);
-    res->rconn = NULL;
-    res->tag = RESPONSE_TAG_LOG;
-    mq_enqueue(RPC.res_q,res);
+    res->type = MRPC_RESPONSE_DATA;
+    res->value.resp.buf = CAST(char*,res)+sizeof(*res);
+    res->value.resp.len = CAST(size_t,res+1);
+    memcpy(res->value.resp.buf,buf,ret+1);
+    res->value.resp.rconn = NULL;
+    res->value.resp.tag = RESPONSE_TAG_LOG;
+
+    mq_enqueue(RPC.poll_q,res);
 }
 
 /* This callback function will be used for each connection */
@@ -646,61 +675,7 @@ int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
     }
 }
 
-/*
- * This is the main poller function that serves as a idle function.
- * This function will be invoked as a timer fashion and it is used
- * to consume the data inside of the response queue.
- */
-
-static
-int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
-    int i = MRPC_DEFAULT_OUTBAND_SIZE;
-    while( i!= 0 ) {
-        void* data;
-        int ret = mq_try_dequeue(RPC.res_q,&data);
-        struct mrpc_res_data_t* res;
-        if( ret != 0 )
-            break;
-        res = CAST(struct mrpc_res_data_t*,data);
-        switch(res->tag) {
-        case RESPONSE_TAG_RSP:
-            if( res->rconn->stage == CONNECTION_FAILED ) {
-                free(res->buf);
-                net_stop(res->rconn->conn);
-                slab_free(&(RPC.conn_slab),res->rconn);
-                break;
-            } else {
-                res->rconn->stage = PENDING_REPLY;
-                net_buffer_produce( &(res->rconn->conn->out), res->buf,  res->len);
-                net_post( res->rconn->conn, NET_EV_WRITE);
-                free(res->buf);
-                res->buf = NULL;
-                res->len = 0;
-                break;
-            }
-        case RESPONSE_TAG_LOG:
-            do_log( "%s" , CAST(const char*,res->buf) );
-            free(res);
-            break;
-        case RESPONSE_TAG_ERR:
-            res->rconn->conn->timeout = MRPC_DEFAULT_TIMEOUT_CLOSE;
-            net_post(res->rconn->conn,NET_EV_CLOSE|NET_EV_TIMEOUT);
-            slab_free(&(RPC.conn_slab),res->rconn);
-            break;
-        case RESPONSE_TAG_DONE:
-            net_stop(res->rconn->conn);
-            slab_free(&(RPC.conn_slab),res->rconn);
-            break;
-        default: assert(0); break;
-        }
-        --i;
-    }
-    conn->timeout = RPC.poll_tm;
-    return NET_EV_TIMEOUT;
-}
-
 /* This is the main function for doing the accept operations */
-
 static
 int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t* conn ) {
     if( ec == 0 ) {
@@ -710,7 +685,8 @@ int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t*
         rconn->conn = conn;
         rconn->length = 0;
         rconn->stage = PENDING_REQUEST_OR_INDICATION;
-        rconn->response.rconn = rconn;
+        rconn->poll_data.type = MRPC_RESPONSE_DATA;
+        rconn->poll_data.value.resp.rconn = rconn;
         rconn->request.rconn = rconn;
 
         /* hook the callback function here */
@@ -721,11 +697,164 @@ int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t*
 }
 
 static
+int mrpc_on_client_do_read( struct net_connection_t* conn , struct mrpc_client_req* req  , void* poll ) {
+    if( req->sz == 0 ) {
+        /* peek the buffer size here */
+        size_t sz = net_buffer_readable_size(&(conn->in));
+        void* data = net_buffer_peek(&(conn->in),&sz);
+        if( mrpc_get_package_size(data,sz,&req->sz) != 0 ) {
+            req->sz = 0;
+            return NET_EV_READ; /* read again */
+        }
+    }
+    /* When we reach here it means that we have already know how large
+     * we need to receive our buffer */
+    if( net_buffer_readable_size(&(conn->in)) == req->sz ) {
+        /* Nice, we have already got all the data we needed here */
+        size_t sz = net_buffer_readable_size(&(conn->in));
+        void* data = net_buffer_peek(&(conn->in),&sz);
+        struct mrpc_response_t resp;
+        /* Parse it into the response */
+        if( mrpc_response_parse(data,sz,&resp) != 0 ) {
+            /* Failed to parse the remote peer */
+            req->cb(NULL,req->udata);
+        } else {
+            req->cb(&resp,req->udata);
+        }
+        free(poll);
+        conn->user_data = NULL;
+        conn->timeout = MRPC_DEFAULT_TIMEOUT_CLOSE;
+        return NET_EV_CLOSE | NET_EV_TIMEOUT;
+    } else {
+        if( net_buffer_readable_size(&(conn->in)) > req->sz ) {
+            req->cb(NULL,req->udata);
+            free(poll);
+            conn->user_data = NULL;
+            return NET_EV_CLOSE;
+        } else {
+            return NET_EV_READ; /* read again */
+        }
+    }
+}
+
+static
+int mrpc_on_client( int ev , int ec , struct net_connection_t* conn ) {
+    struct mrpc_poll_data_t* poll = CAST(struct mrpc_poll_data_t*,conn->user_data);
+    struct mrpc_client_req* req = &(poll->value.cli_req);
+
+    assert( poll->type == MRPC_CLIENT_REQUEST );
+    if( ec != 0 ) {
+        /* error happened */
+        do_log("[MRPC]:async client network error:%d",ec);
+        goto fail;
+    } else {
+        if( ev & NET_EV_EOF ) {
+            goto fail;
+        } else  if( ev & NET_EV_CONNECT ) {
+            /* If the event is net_connected , it means that we need to
+             * send out the data we have in req_data field . */
+            net_buffer_produce( &(conn->out), req->req_data, req->sz);
+            free(req->req_data);
+            req->req_data = NULL;
+            req->sz = 0;
+            return NET_EV_WRITE;
+        } else if ( ev & NET_EV_WRITE ) {
+            assert( req->req_data == NULL && req->sz == 0 );
+            return NET_EV_READ;
+        } else if( ev & NET_EV_READ ) {
+            return mrpc_on_client_do_read(conn,req,poll);
+        } else {
+            goto fail;
+        }
+    }
+fail:
+    /* network failure */
+    if( req != NULL ) {
+        req->cb(NULL,req->udata);
+        if( req->req_data != NULL ) {
+            free(req->req_data);
+        }
+        free(poll);
+        conn->user_data = NULL;
+    }
+    return NET_EV_CLOSE;
+}
+
+/*
+ * This is the main poller function that serves as a idle function.
+ * This function will be invoked as a timer fashion and it is used
+ * to consume the data inside of the response queue.
+ */
+
+static
+void mrpc_poll_handle_response( struct mrpc_res_data_t* res ) {
+    switch(res->tag) {
+    case RESPONSE_TAG_RSP:
+        if( res->rconn->stage == CONNECTION_FAILED ) {
+            free(res->buf);
+            net_stop(res->rconn->conn);
+            slab_free(&(RPC.conn_slab),res->rconn);
+            break;
+        } else {
+            res->rconn->stage = PENDING_REPLY;
+            net_buffer_produce( &(res->rconn->conn->out), res->buf,  res->len);
+            net_post( res->rconn->conn, NET_EV_WRITE);
+            free(res->buf);
+            res->buf = NULL;
+            res->len = 0;
+            break;
+        }
+    case RESPONSE_TAG_LOG:
+        do_log( "%s" , CAST(const char*,res->buf) );
+        free(res);
+        break;
+    case RESPONSE_TAG_ERR:
+        res->rconn->conn->timeout = MRPC_DEFAULT_TIMEOUT_CLOSE;
+        net_post(res->rconn->conn,NET_EV_CLOSE|NET_EV_TIMEOUT);
+        slab_free(&(RPC.conn_slab),res->rconn);
+        break;
+    case RESPONSE_TAG_DONE:
+        net_stop(res->rconn->conn);
+        slab_free(&(RPC.conn_slab),res->rconn);
+        break;
+    default: assert(0); break;
+    }
+}
+
+static
+int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
+    int i = MRPC_DEFAULT_OUTBAND_SIZE;
+    while( i!= 0 ) {
+        void* data;
+        int ret = mq_try_dequeue(RPC.poll_q,&data);
+        struct mrpc_poll_data_t* poll_data;
+        if( ret != 0 )
+            break;
+        poll_data = CAST(struct mrpc_poll_data_t*,data);
+
+        switch( poll_data->type ) {
+        case MRPC_RESPONSE_DATA:
+            mrpc_poll_handle_response(&(poll_data->value.resp));
+            break;
+        case MRPC_CLIENT_REQUEST: {
+                struct net_connection_t* conn =
+                    net_connection(&(RPC.server),mrpc_on_client,poll_data->value.cli_req.addr,500);
+                conn->user_data = poll_data;
+                break;
+            }
+        default: assert(0); break;
+        }
+        --i;
+    }
+    conn->timeout = RPC.poll_tm;
+    return NET_EV_TIMEOUT;
+}
+
+
+static
 void mrpc_stop( int signal ) {
     signal = signal;
-    if( MRPC_INSTANCE_NUM == 1 ) {
-        net_server_wakeup(&(RPC.server));
-    }
+    mrpc_interrupt();
 }
 
 #ifdef _WIN32
@@ -756,12 +885,12 @@ int mrpc_init( const char* logf_name , const char* addr , int polling_time ) {
     /* initialize RPC object */
     slab_create(&(RPC.conn_slab),sizeof(struct mrpc_conn_t),MRPC_DEFAULT_RESERVE_MEMPOOL);
     RPC.req_q = mq_create();
-    RPC.res_q = mq_create();
+    RPC.poll_q = mq_create();
     RPC.logf = fopen(logf_name,"a+");
     if( RPC.logf == NULL ) {
         slab_destroy(&(RPC.conn_slab));
         mq_destroy(RPC.req_q);
-        mq_destroy(RPC.res_q);
+        mq_destroy(RPC.poll_q);
         return -1;
     }
 
@@ -773,7 +902,7 @@ int mrpc_init( const char* logf_name , const char* addr , int polling_time ) {
         fclose(RPC.logf);
         slab_destroy(&(RPC.conn_slab));
         mq_destroy(RPC.req_q);
-        mq_destroy(RPC.res_q);
+        mq_destroy(RPC.poll_q);
         return -1;
 
     }
@@ -800,7 +929,7 @@ mrpc_clean() {
     assert(MRPC_INSTANCE_NUM == 1);
     do_log("%s","[MRPC]:MRPC exit successfully!");
     mq_destroy(RPC.req_q);
-    mq_destroy(RPC.res_q);
+    mq_destroy(RPC.poll_q);
     slab_destroy(&(RPC.conn_slab));
     fclose(RPC.logf);
     net_server_destroy(&(RPC.server));
@@ -819,6 +948,12 @@ int mrpc_run() {
                 return 1;
             }
         }
+    }
+}
+
+void mrpc_interrupt() {
+    if( MRPC_INSTANCE_NUM == 1 ) {
+        net_server_wakeup(&(RPC.server));
     }
 }
 
@@ -932,6 +1067,42 @@ fail:
         free(seria_data);
     return NULL;
 }
+
+/* async send */
+int mrpc_request_async( const char* addr, int method_type , const char* method_name ,
+                       mrpc_request_async_cb cb , void* udata , const char* par_fmt , ... ) {
+
+    void* req_data;
+    size_t data_len;
+    va_list vlist;
+    struct mrpc_poll_data_t* req;
+
+
+    va_start(vlist,par_fmt);
+
+    req_data = mrpc_request_vserialize(&data_len,method_type,method_name,par_fmt,vlist);
+    if( req_data == NULL ) {
+        return -1;
+    } 
+
+    req = malloc(sizeof(*req));
+    VERIFY(req);
+
+    req->type = MRPC_CLIENT_REQUEST;
+    req->value.cli_req.req_data = req_data;
+    req->value.cli_req.sz = data_len;
+    req->value.cli_req.udata = udata;
+    req->value.cli_req.cb = cb;
+    strcpy(req->value.cli_req.addr,addr);
+
+    /* sending into the internal queue */
+    mq_enqueue( RPC.poll_q , req );
+
+    return 0;
+}
+
+
+/* blocking send */
 
 static
 int mrpc_request_do_send( socket_t fd , const void* data, size_t sz ) {

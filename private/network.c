@@ -485,7 +485,7 @@ static int dispatch( struct net_server_t* server , fd_set* read_set , fd_set* wr
         // timeout
         if( (conn->pending_event & NET_EV_TIMEOUT) ||
             (conn->pending_event & NET_EV_TIMEOUT_AND_CLOSE) ) {
-            if( conn->timeout <= time_diff ) {
+            if( conn->timeout <= time_diff || conn->timeout == 0 ) {
                 ev |= (conn->pending_event & NET_EV_TIMEOUT) ? NET_EV_TIMEOUT : NET_EV_TIMEOUT_AND_CLOSE;
             } else {
                 conn->timeout -= time_diff;
@@ -776,6 +776,15 @@ int net_non_block_connect( struct net_connection_t* conn , const char* addr , in
         return conn->pending_event;
     }
     return conn->pending_event;
+}
+
+struct net_connection_t* net_connection( struct net_server_t* server , net_ccb_func cb , 
+                                         const char* addr , int timeout ) {
+    struct net_connection_t* conn = connection_create(invalid_socket_handler);
+    connection_add(server,conn);
+    conn->cb = cb;
+    conn->pending_event = net_non_block_connect(conn,addr,timeout);
+    return conn;
 }
 
 // timer and socket

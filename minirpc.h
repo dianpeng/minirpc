@@ -126,6 +126,7 @@ void mrpc_clean();
  * --------------------------------------*/
 int mrpc_run();
 int mrpc_poll();
+void mrpc_interrupt();
 
 /* All the following functions are thread safe */
 
@@ -151,6 +152,17 @@ void mrpc_write_log( const char* fmt , ... );
  * blocking version API */
 int mrpc_request( const char* addr, int method_type , const char* method_name ,
                   struct mrpc_response_t* res , const char* par_fmt , ... );
+
+
+typedef void (*mrpc_request_async_cb)( const struct mrpc_response_t* res , void* data );
+
+/* Mini RPC request function with non blocking version API.
+ * It requires that the MRPC is running now , so it means
+ * call it _AFTER_ a certain thread called MRPC_POLL .
+ * The callback function will be called in the MRPC_POLL thread */
+
+int mrpc_request_async( const char* addr, int method_type , const char* method_name ,
+                        mrpc_request_async_cb cb , void* data , const char* par_fmt , ... );
 
 /* This function is used to serialize the data into the buffer. the returned value is
  * malloced on heap, after sending it, the user needs to call free function to free it */
