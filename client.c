@@ -57,17 +57,20 @@ thread_main(void* par) {
 
 
 int main() {
-    HANDLE hThread;
-    mrpc_init("simple-log.txt","127.0.0.1:12346",1);
     /* initialize another thread to issue the request */
 #ifdef _WIN32
+    HANDLE hThread;
+    mrpc_init("log.txt","127.0.0.1:12346",1);
     hThread = (HANDLE)_beginthreadex(
         NULL,0,thread_main,NULL,0,NULL);
     WaitForSingleObject(hThread,INFINITE);
 #else
+    pthread_t th;
+    mrpc_init("log.txt","127.0.0.1:12346",1);
+    pthread_create(&th,NULL,_thread_main,NULL);
+    pthread_join(th,NULL);
 #endif /* _WIN32 */
     mrpc_run();
-
     return 0;
 }
 
