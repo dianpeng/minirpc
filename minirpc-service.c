@@ -421,7 +421,7 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
 
 void mrpc_service_run( struct mrpc_service_t* service ) {
     struct mrpc_service_th_t th;
-    th.exit = false;
+    th.exit = 0;
     th.service = service;
     _mrpc_service_th_cb(&th);
 }
