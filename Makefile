@@ -1,12 +1,19 @@
-all: mini-rpc
-PRIVATE=private/coder.h private/coder.c private/conf.h private/mem.h private/mem.c private/mq.h private/mq.c private/network.c private/network.h
+NAME := libminirpc
+SOURCE := $(wildcard *.c) $(wildcard private/*.c)
+OBJ := ${SOURCE:.c=.o}
+LIB := *.a
+CC=gcc
+OFLAGS=-Os
 
+.PHONY:all clean
 
-mini-rpc.o: $(PRIVATE) minirpc.h minirpc-service.h minirpc-service.c
-	gcc -c minirpc.c -O3 -o mini-rpc.o
+all: $(NAME)
+
+minirpc: $(OBJ)
+	$(CC) -c $(SOURCE) $(FLASGS)
 	
-mini-rpc: mini-rpc.o
-	ar rcs libmini-rpc.a mini-rpc.o
-	
+$(NAME): minirpc
+	ar rcs libminirpc.a $(OBJ)
+
 clean:
-	rm -f *.o *a
+	rm -f *.o *.a

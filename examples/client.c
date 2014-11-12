@@ -18,10 +18,17 @@
 int TIMES = MAX_REQUEST;
 clock_t START;
 
+#define VERIFY(x) \
+    do { \
+        if(!(x)) { \
+            abort(); \
+        } \
+    } while(0)
+
 static
 void mrpc_req_cb( const struct mrpc_response_t* res , void* data ) {
-    assert( res != NULL );
-    assert( res->result.value.uinteger == 4 );
+    VERIFY( res != NULL );
+    VERIFY( res->result.value.uinteger == 4 );
     --TIMES;
     printf(".");
     if( TIMES == 0 ) {
@@ -39,7 +46,7 @@ void*
 thread_main(void* par) {
     int i;
     for( i = 0 ; i < MAX_REQUEST ; ++i ) {
-        assert ( mrpc_request_async(
+        VERIFY ( mrpc_request_async(
                     mrpc_req_cb,
                     NULL,
                     5000,

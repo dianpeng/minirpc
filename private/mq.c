@@ -336,7 +336,7 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
 
 void mq_dequeue( struct mq_t* mq, void** data ) {
     /* get data from the back queue no lock now. */
-    struct queue_node_t* n;
+    struct queue_node_t* n=NULL;
     int ret;
 
     /* try to dequeue the data from the queue */
