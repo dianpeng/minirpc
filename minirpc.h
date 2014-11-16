@@ -126,18 +126,26 @@ void mrpc_clean();
  * --------------------------------------*/
 int mrpc_run();
 int mrpc_poll();
+
+/* Interrupt all blocking async operation of MRPC 
+ * After, interruption , any call to MRPC function
+ * is undefined. MRPC has already taken care of signal 
+ */
 void mrpc_interrupt();
 
 /* All the following functions are thread safe */
 
-/* The try recv function will _NOT_ block , so it may return a negative
- * number indicate that a message is not available (possibly because no
- * data is there,or an error is there) */
+/* The mrpc_request_(try)_recv function is used to grab the data from the queue 
+ * The *try* version will not block and just try to get the data. The other one
+ * will block until a data is there .
+ * However, due to user calls mrpc_interrupt, this function may still return without
+ * any data available.
+ * Return 0 : success ; return 1 : interruption ; return -1: failed. 
+ */
+
 int mrpc_request_try_recv( struct mrpc_request_t* req , void** );
-/* This function will block until a package is received, however it still
- * can return negative value because of the package is broken. This function
- * is good to call in a remote thread */
 int mrpc_request_recv( struct mrpc_request_t* req , void** );
+
 void mrpc_response_send( const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
 /* This function is used to finish a indication request */
 void mrpc_response_done( void* );

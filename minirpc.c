@@ -513,6 +513,8 @@ int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
         if( ret != 0 ) {
             return -1;
         }
+        if( data == NULL )
+            return 1;
         *conn = data->rconn;
         ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
         if( ec != 0 ) {
@@ -529,6 +531,8 @@ int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
     struct mrpc_req_data_t* data;
     int ec;
     mq_dequeue(RPC.req_q,CAST(void*,&data));
+    if( data == NULL )
+        return 1;
     *conn = data->rconn;
     ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
     if( ec != 0 ) {
@@ -959,6 +963,7 @@ int mrpc_run() {
 void mrpc_interrupt() {
     if( MRPC_INSTANCE_NUM == 1 ) {
         net_server_wakeup(&(RPC.server));
+        mq_wakeup(RPC.req_q);
     }
 }
 

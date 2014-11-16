@@ -55,6 +55,11 @@ void cond_signal_one( cond_t* c  ) {
 }
 
 static
+void cond_signal_all( cond_t* c ) {
+    WakeAllConditionVariable(c);
+}
+
+static
 void cond_delete( cond_t* c ) {
     c=c;
 }
@@ -181,6 +186,15 @@ int ret =
 }
 
 static
+void cond_signal_all( cond_t* c ) {
+#ifndef NDEBUG
+int ret =
+#endif /* NDEBUG */
+    pthread_cond_broadcast(c);
+    assert( ret == 0 );
+}
+
+static
 void cond_delete( cond_t* c ) {
 #ifndef NDEBUG
 int ret =
@@ -285,6 +299,7 @@ struct mq_t {
     mutex_t lk;       /* this mutex and condition variable is used to protect sleeped thread */
     cond_t c;
     int sleep_thread; /* only when no work is there, it will be useful */
+    int exit; /* this flag is used to notify the blocked the dequeue function to exit */
 };
 
 struct mq_t* mq_create() {
@@ -295,6 +310,7 @@ struct mq_t* mq_create() {
     mutex_init(&(ret->lk));
     spinlock_init(&(ret->sp_lk));
     ret->sleep_thread = 0;
+    ret->exit = 0;
     return ret;
 }
 
@@ -310,6 +326,8 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
     /* do the allocation */
     struct queue_node_t* n = malloc(sizeof(*n));
     VERIFY(n);
+    assert( data );
+
     n->data = data;
     /* the queue itself is protected by the spinlock */
     spinlock_lock(&(mq->sp_lk));
@@ -353,14 +371,14 @@ void mq_dequeue( struct mq_t* mq, void** data ) {
 
         /* Busy spin here to avoid early sleep.
          * Is it useful ? */
-        while( i-- && ret != 0 ) {
+        while( i-- && ret != 0 && !mq->exit ) {
             spinlock_lock(&(mq->sp_lk));
             ret = dequeue(&(mq->q),&n);
             spinlock_unlock(&(mq->sp_lk));
         }
 
         /* check if we have that luck */
-        if( ret == 0 )
+        if( ret == 0 || mq->exit )
             goto done;
 
         /* now we need to wait for the condition now,
@@ -388,7 +406,7 @@ void mq_dequeue( struct mq_t* mq, void** data ) {
             ret = dequeue(&(mq->q),&n);
             spinlock_unlock(&(mq->sp_lk));
 
-        } while( ret != 0 );
+        } while( ret != 0 && !mq->exit );
 
         /* When we reach here, it means that we have already get the
          * new data in the queue. Therefore, we can unlock the mutex
@@ -398,13 +416,22 @@ void mq_dequeue( struct mq_t* mq, void** data ) {
     }
 done:
     /* We get what we want */
-    *data = n->data;
+    if( mq->exit ) {
+        *data = NULL;
+    } else {
+        *data = n->data;
+    }
     free(n);
 }
 
 int mq_try_dequeue( struct mq_t* mq , void** data ) {
     struct queue_node_t* n;
     int ret;
+
+    if( mq->exit ) {
+        *data = NULL;
+        return 0;
+    }
 
     spinlock_lock(&(mq->sp_lk));
     ret = dequeue(&(mq->q),&n);
@@ -418,4 +445,9 @@ int mq_try_dequeue( struct mq_t* mq , void** data ) {
     } else {
         return -1;
     }
+}
+
+void mq_wakeup( struct mq_t* mq ) {
+    mq->exit = 1;
+    cond_signal_all(&(mq->c));
 }

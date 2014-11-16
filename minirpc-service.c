@@ -176,7 +176,7 @@ struct th_pool_t {
 };
 
 struct mrpc_service_th_t {
-    volatile int exit;
+    int exit; /* This one is used to release the thread when error happened */
     struct mrpc_service_t* service;
 };
 
@@ -315,8 +315,18 @@ _mrpc_service_th_cb( void* par ) {
         void* key;
         struct mrpc_request_t req;
         const struct mrpc_service_entry_t* func_entry;
-        if( mrpc_request_recv(&req,&key) != 0 )
+        int ret = mrpc_request_recv(&req,&key);
+
+        if( ret <0 )
             continue;
+
+        /* when we get the notification that MRPC is interrupted, we just
+         * return from the thread callback and user needs to call mrpc_service_quit
+         * to join all the allocated thread */
+
+        else if( ret == 1 )
+            return;
+
         /* look up the service and then start to execute */
         func_entry = mrpc_stbl_query( &(th->service->stable), req.method_name );
         if( func_entry == NULL ) {
@@ -345,7 +355,6 @@ _mrpc_service_th_cb( void* par ) {
                 error_code);
         }
     }
-    assert(th->exit);
 }
 
 struct mrpc_service_t*
@@ -399,7 +408,6 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
                 MRPC_EC_FUNCTION_NOT_FOUND);
 
         } else {
-
             int error_code;
             struct mrpc_val_t result;
 
@@ -421,7 +429,6 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
 
 void mrpc_service_run( struct mrpc_service_t* service ) {
     struct mrpc_service_th_t th;
-    th.exit = 0;
     th.service = service;
     _mrpc_service_th_cb(&th);
 }
@@ -434,15 +441,16 @@ int mrpc_service_run_remote( struct mrpc_service_t* service, int thread_sz ) {
     service->th_data = malloc(sizeof(*service->th_data)*thread_sz);
     VERIFY(service->th_data);
     for( i = 0 ; i < thread_sz ; ++i ) {
-        service->th_data[i].p.exit = 0;
         service->th_data[i].p.service = service;
         service->th_data[i].cb = _mrpc_service_th_cb;
+        service->th_data[i].p.exit = 0;
     }
 
     ret=th_pool_create(&(service->th_pool),thread_sz,
                    _mrpc_service_th_cb,
                    service->th_data,
                    &created_sz);
+
     if( ret != 0 ) {
         /* rollback to no thread creation status */
         for( i = 0 ; i < created_sz ; ++i ) {
@@ -456,10 +464,6 @@ int mrpc_service_run_remote( struct mrpc_service_t* service, int thread_sz ) {
 }
 
 int mrpc_service_quit( struct mrpc_service_t* service ) {
-    size_t i ;
-    for( i = 0 ; i < service->th_pool.th_sz ; ++i ) {
-        service->th_data[i].p.exit = 1;
-    }
     return th_pool_join(&(service->th_pool),service->th_pool.th_sz);
 }
 
