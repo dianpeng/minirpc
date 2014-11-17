@@ -942,6 +942,7 @@ mrpc_clean() {
     slab_destroy(&(RPC.conn_slab));
     fclose(RPC.logf);
     net_server_destroy(&(RPC.server));
+	--MRPC_INSTANCE_NUM;
 }
 
 int mrpc_run() {

@@ -3,13 +3,12 @@
 #include <stddef.h>
 
 /*
- * This is a very simple C module for the minirpc service.
- * It contains a simple thread pool implementation for
- * executing different service. The user could use it as
- * default way to handle the minirpc service. This module
- * can also initialize as a single thread configuration.
- * It means you could use a single thread to handle MRPC
- * and also the service. See test/exampe for more detail
+ * This is the default Mini RPC service module. A service means a reigetered
+ * RPC routine. This service module provides infrastructure to register,execute
+ * service using multi-thread. To make it more flexible, the user is able to
+ * call the service execution manually as well, and it means user could multiplex
+ * the service execution with MRPC poll function in a single thread when thread
+ * is not available
  */
 
 struct mrpc_val_t;
@@ -37,13 +36,30 @@ int mrpc_service_add( struct mrpc_service_t*, mrpc_service_cb cb , const char* m
 void mrpc_service_run_once( struct mrpc_service_t* );
 void mrpc_service_run( struct mrpc_service_t* );
 
-/* Running the service in the remote thread  */
+/* Running the service in the remote thread, the user needs to 
+ * specify the thread number. This function will not block or 
+ * run any callback function inside of it. All the callback 
+ * function will be executed in back ground thread.
+ */
+ 
 int mrpc_service_run_remote( struct mrpc_service_t* , int thread_sz );
+
 /* Call this function inside of the thread that call mrpc_service_run_remote
- * This function will block until all the thread join in the calling thread */
+ * This function will block until all the thread join in the calling thread.
+ * This function may deadlock if the user doesn't call mrpc_interrupt, the
+ * service module will not call this function manually. A typical way is just
+ * run the mrpc_run in main thread , and put this function right after it. 
+ * It is because MRPC take care of signal handling, so a Ctrl+Z/C/X can be 
+ * issued from user to _STOP_ the service , after that the mrpc_run will exit
+ * automatically and service module _DO_ receive this interruption as well 
+ * internally . Then call mrpc_service_run_quit after mrpc_run is _ALWAYS_
+ * safe there. */
+ 
 int mrpc_service_quit( struct mrpc_service_t* );
 
 /* Utility */
+
+/* Get opaque user data */
 void* mrpc_service_get_udata( struct mrpc_service_t* );
 
 #endif /* MINIRPC_SERVICE_H_ */
