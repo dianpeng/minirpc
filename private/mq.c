@@ -350,7 +350,7 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
 
 /* We use an adaptive algorithm to adjust sleep time */
 #define MIN_SLEEP_TIME 2
-#define MAX_SLEEP_TIME 512
+#define MAX_SLEEP_TIME 256
 
 void mq_dequeue( struct mq_t* mq, void** data ) {
     /* get data from the back queue no lock now. */

@@ -69,7 +69,7 @@ int main() {
     mrpc_service_add( service, addition_cb, "Add", NULL );
 
     /* start the service in backend thread */
-    mrpc_service_run_remote(service,32);
+    mrpc_service_run_remote(service,12);
 
     /* start working now */
     ret = mrpc_run();
