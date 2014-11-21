@@ -149,7 +149,7 @@ static int get_time_millisec() {
 //                   write_pos
 //                                  capacity
 
-struct net_buffer_t* net_buffer_create( size_t cap , struct net_buffer_t* buf ) {
+struct net_buffer* net_buffer_create( size_t cap , struct net_buffer* buf ) {
     if( cap == 0 )
         buf->mem = NULL;
     else
@@ -159,13 +159,13 @@ struct net_buffer_t* net_buffer_create( size_t cap , struct net_buffer_t* buf ) 
     return buf;
 }
 
-void net_buffer_free( struct net_buffer_t* buf ) {
+void net_buffer_free( struct net_buffer* buf ) {
     if(buf->mem)
         mem_free(buf->mem);
     buf->consume_pos = buf->produce_pos = buf->capacity = 0;
 }
 
-void* net_buffer_consume( struct net_buffer_t* buf , size_t* size ) {
+void* net_buffer_consume( struct net_buffer* buf , size_t* size ) {
     int consume_size;
     void* ret;
     if( buf->mem == NULL ) { *size = 0 ; return NULL; }
@@ -184,7 +184,7 @@ void* net_buffer_consume( struct net_buffer_t* buf , size_t* size ) {
     }
 }
 
-void* net_buffer_peek( struct net_buffer_t*  buf , size_t* size ) {
+void* net_buffer_peek( struct net_buffer*  buf , size_t* size ) {
     int consume_size;
     void* ret;
     if( buf->mem == NULL ) { *size = 0 ; return NULL; }
@@ -197,7 +197,7 @@ void* net_buffer_peek( struct net_buffer_t*  buf , size_t* size ) {
     }
 }
 
-void net_buffer_produce( struct net_buffer_t* buf , const void* data , size_t size ) {
+void net_buffer_produce( struct net_buffer* buf , const void* data , size_t size ) {
     if( buf->capacity < size + buf->produce_pos ) {
         // We need to expand the memory
         size_t cap = size + buf->produce_pos;
@@ -209,7 +209,7 @@ void net_buffer_produce( struct net_buffer_t* buf , const void* data , size_t si
     buf->produce_pos += size;
 }
 
-static void* net_buffer_consume_peek( struct net_buffer_t* buf ) {
+static void* net_buffer_consume_peek( struct net_buffer* buf ) {
     if( buf->mem == NULL )
         return NULL;
     else {
@@ -220,7 +220,7 @@ static void* net_buffer_consume_peek( struct net_buffer_t* buf ) {
     }
 }
 
-static void net_buffer_consume_advance( struct net_buffer_t* buf , size_t size ) {
+static void net_buffer_consume_advance( struct net_buffer* buf , size_t size ) {
     if( buf->mem == NULL || buf->produce_pos < buf->consume_pos + size )
         return;
     buf->consume_pos += size;
@@ -236,14 +236,14 @@ static void net_buffer_consume_advance( struct net_buffer_t* buf , size_t size )
     } while(0)
 
 // connection
-static void connection_cb( int ev , int ec , struct net_connection_t* conn ) {
+static void connection_cb( int ev , int ec , struct net_connection* conn ) {
     if( conn->cb != NULL ) {
         conn->pending_event = conn->cb(ev,ec,conn);
     }
 }
 
-static struct net_connection_t* connection_create( socket_t fd ) {
-    struct net_connection_t* conn = mem_alloc(sizeof(struct net_connection_t));
+static struct net_connection* connection_create( socket_t fd ) {
+    struct net_connection* conn = mem_alloc(sizeof(struct net_connection));
     conn->socket_fd = fd;
     net_buffer_clear(&(conn->in));
     net_buffer_clear(&(conn->out));
@@ -264,8 +264,8 @@ static struct net_connection_t* connection_create( socket_t fd ) {
         conn->next = &((server)->conns); \
     }while(0)
 
-static struct net_connection_t* connection_destroy( struct net_connection_t* conn ) {
-    struct net_connection_t* ret = conn->prev;
+static struct net_connection* connection_destroy( struct net_connection* conn ) {
+    struct net_connection* ret = conn->prev;
     // closing the underlying socket and this must be called at once
     conn->prev->next = conn->next;
     conn->next->prev = conn->prev;
@@ -275,16 +275,16 @@ static struct net_connection_t* connection_destroy( struct net_connection_t* con
     return ret;
 }
 
-static struct net_connection_t* connection_close( struct net_connection_t* conn ) {
+static struct net_connection* connection_close( struct net_connection* conn ) {
     socket_t fd = conn->socket_fd;
-    struct net_connection_t* ret = connection_destroy(conn);
+    struct net_connection* ret = connection_destroy(conn);
     if( fd != invalid_socket_handler )
         closesocket(fd);
     return ret;
 }
 
 // server
-int net_server_create( struct net_server_t* server, const char* addr , net_acb_func cb ) {
+int net_server_create( struct net_server* server, const char* addr , net_acb_func cb ) {
     struct sockaddr_in ipv4;
     server->conns.next = &(server->conns);
     server->conns.prev = &(server->conns);
@@ -349,9 +349,9 @@ int net_server_create( struct net_server_t* server, const char* addr , net_acb_f
     return 0;
 }
 
-static void server_close_all_conns( struct net_server_t* server ) {
-    struct net_connection_t* next = server->conns.next;
-    struct net_connection_t* temp = NULL;
+static void server_close_all_conns( struct net_server* server ) {
+    struct net_connection* next = server->conns.next;
+    struct net_connection* temp = NULL;
     while( next != &(server->conns) ) {
         temp = next->next;
         connection_close(temp);
@@ -359,7 +359,7 @@ static void server_close_all_conns( struct net_server_t* server ) {
     }
 }
 
-void net_server_destroy( struct net_server_t* server ) {
+void net_server_destroy( struct net_server* server ) {
     server_close_all_conns(server);
     if( server->ctrl_fd != invalid_socket_handler )
         closesocket(server->ctrl_fd);
@@ -374,7 +374,7 @@ void net_server_destroy( struct net_server_t* server ) {
 #endif // MULTI_SERVER_ENABLE
 }
 
-int net_server_wakeup( struct net_server_t* server ) {
+int net_server_wakeup( struct net_server* server ) {
     char buffer[SERVER_CONTROL_DATA_LENGTH];
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
@@ -387,11 +387,11 @@ int net_server_wakeup( struct net_server_t* server ) {
         SERVER_CONTROL_DATA_LENGTH,0,cast(struct sockaddr*,&addr),len) >0 ? 1 : 0;
 }
 
-static void do_accept( struct net_server_t* server );
-static void do_control( struct net_server_t* server );
-static int do_write( struct net_connection_t* conn , int* error_code );
-static int do_read( struct net_server_t* server , int* error_code , struct net_connection_t* conn );
-static int do_connected( struct net_connection_t* conn , int* error_code );
+static void do_accept( struct net_server* server );
+static void do_control( struct net_server* server );
+static int do_write( struct net_connection* conn , int* error_code );
+static int do_read( struct net_server* server , int* error_code , struct net_connection* conn );
+static int do_connected( struct net_connection* conn , int* error_code );
 
 #define ADD_FSET(fs,fd,mfd) \
     do { \
@@ -399,7 +399,7 @@ static int do_connected( struct net_connection_t* conn , int* error_code );
         if( *(mfd) < fd ) { *(mfd) = fd; } \
     }while(0)
 
-static int prepare_linger( struct net_connection_t* conn , fd_set* write , socket_t* max_fd ) {
+static int prepare_linger( struct net_connection* conn , fd_set* write , socket_t* max_fd ) {
     if( net_buffer_readable_size(&(conn->out)) ) {
         FD_SET(conn->socket_fd,write);
         if( *max_fd < conn->socket_fd )
@@ -409,8 +409,8 @@ static int prepare_linger( struct net_connection_t* conn , fd_set* write , socke
     return -1;
 }
 
-static void prepare_fd( struct net_server_t* server , fd_set* read_set , fd_set* write_set , int* millis , socket_t* max_fd ) {
-    struct net_connection_t* conn;
+static void prepare_fd( struct net_server* server , fd_set* read_set , fd_set* write_set , int* millis , socket_t* max_fd ) {
+    struct net_connection* conn;
     // adding the whole connection that we already have to the sets
     for( conn = server->conns.next ; conn != &(server->conns) ; conn = conn->next ) {
         if( conn->pending_event & NET_EV_IDLE )
@@ -465,8 +465,8 @@ static void prepare_fd( struct net_server_t* server , fd_set* read_set , fd_set*
     }
 }
 
-static int dispatch( struct net_server_t* server , fd_set* read_set , fd_set* write_set , int time_diff ) {
-    struct net_connection_t* conn;
+static int dispatch( struct net_server* server , fd_set* read_set , fd_set* write_set , int time_diff ) {
+    struct net_connection* conn;
     int ev , rw , ret ,ec;
     // 1. checking if we have control operation or not
     if( FD_ISSET(server->ctrl_fd,read_set) ) {
@@ -561,8 +561,8 @@ static int dispatch( struct net_server_t* server , fd_set* read_set , fd_set* wr
     return 0;
 }
 
-static void reclaim_socket( struct net_server_t* server ) {
-    struct net_connection_t* conn;
+static void reclaim_socket( struct net_server* server ) {
+    struct net_connection* conn;
     // reclaim all the socket that has marked it as CLOSE operation
     for( conn = server->conns.next ; conn != &(server->conns) ; conn = conn->next ) {
         if( conn->pending_event & NET_EV_CLOSE ) {
@@ -573,7 +573,7 @@ static void reclaim_socket( struct net_server_t* server ) {
     }
 }
 
-int net_server_poll( struct net_server_t* server , int millis , int* wakeup ) {
+int net_server_poll( struct net_server* server , int millis , int* wakeup ) {
     fd_set read_set , write_set;
     socket_t max_fd = invalid_socket_handler;
     int active_num , return_num;
@@ -639,8 +639,8 @@ int net_server_poll( struct net_server_t* server , int millis , int* wakeup ) {
 
 #undef ADD_FSET
 
-static void do_accept( struct net_server_t* server ) {
-    struct net_connection_t* conn;
+static void do_accept( struct net_server* server ) {
+    struct net_connection* conn;
     int error_code;
     do {
         socket_t sock = accept(server->listen_fd,NULL,NULL);
@@ -665,7 +665,7 @@ static void do_accept( struct net_server_t* server ) {
     } while(1);
 }
 
-static int do_read( struct net_server_t* server , int* error_code , struct net_connection_t* conn ) {
+static int do_read( struct net_server* server , int* error_code , struct net_connection* conn ) {
     int rd = recv( conn->socket_fd , server->reserve_buffer , MAXIMUM_IPV4_PACKET_SIZE , 0 );
     if( rd <= 0 ) {
         *error_code = net_has_error();
@@ -676,7 +676,7 @@ static int do_read( struct net_server_t* server , int* error_code , struct net_c
     }
 }
 
-static int do_write( struct net_connection_t* conn , int* error_code ) {
+static int do_write( struct net_connection* conn , int* error_code ) {
     void* out = net_buffer_consume_peek(&(conn->out));
     int snd;
     if( out == NULL ) return 0;
@@ -690,12 +690,12 @@ static int do_write( struct net_connection_t* conn , int* error_code ) {
     }
 }
 
-static void do_control( struct net_server_t* server ) {
+static void do_control( struct net_server* server ) {
     char buffer[SERVER_CONTROL_DATA_LENGTH];
     recvfrom(server->ctrl_fd,buffer,SERVER_CONTROL_DATA_LENGTH,0,NULL,NULL);
 }
 
-static int do_connected( struct net_connection_t* conn , int* error_code ) {
+static int do_connected( struct net_connection* conn , int* error_code ) {
     int val;
     socklen_t len = sizeof(int);
     // before we do anything we need to check whether we have connected to the socket or not
@@ -729,12 +729,12 @@ socket_t net_block_client_connect( const char* addr ) {
     }
 }
 
-int net_non_block_client_connect(struct net_server_t* server ,
+int net_non_block_client_connect(struct net_server* server ,
     const char* addr ,
     net_ccb_func cb ,
     void* udata ,
     int timeout ) {
-        struct net_connection_t* conn = connection_create(invalid_socket_handler);
+        struct net_connection* conn = connection_create(invalid_socket_handler);
         connection_add(server,conn);
         conn->cb = cb;
         conn->user_data = udata;
@@ -748,7 +748,7 @@ int net_non_block_client_connect(struct net_server_t* server ,
         return 0;
 }
 
-int net_non_block_connect( struct net_connection_t* conn , const char* addr , int timeout ) {
+int net_non_block_connect( struct net_connection* conn , const char* addr , int timeout ) {
     int ret;
     struct sockaddr_in ipv4;
     socket_t fd;
@@ -778,18 +778,18 @@ int net_non_block_connect( struct net_connection_t* conn , const char* addr , in
     return conn->pending_event;
 }
 
-struct net_connection_t* net_connection( struct net_server_t* server , net_ccb_func cb , 
-                                         const char* addr , int timeout ) {
-    struct net_connection_t* conn = connection_create(invalid_socket_handler);
-    connection_add(server,conn);
-    conn->cb = cb;
-    conn->pending_event = net_non_block_connect(conn,addr,timeout);
-    return conn;
+struct net_connection* net_make_connection( struct net_server* server , net_ccb_func cb , 
+    const char* addr , int timeout ) {
+        struct net_connection* conn = connection_create(invalid_socket_handler);
+        connection_add(server,conn);
+        conn->cb = cb;
+        conn->pending_event = net_non_block_connect(conn,addr,timeout);
+        return conn;
 }
 
 // timer and socket
-struct net_connection_t* net_timer( struct net_server_t* server , net_ccb_func cb , void* udata , int timeout ) {
-    struct net_connection_t* conn = connection_create(invalid_socket_handler);
+struct net_connection* net_timer( struct net_server* server , net_ccb_func cb , void* udata , int timeout ) {
+    struct net_connection* conn = connection_create(invalid_socket_handler);
     connection_add(server,conn);
     conn->cb = cb;
     conn->user_data = udata;
@@ -798,8 +798,8 @@ struct net_connection_t* net_timer( struct net_server_t* server , net_ccb_func c
     return conn;
 }
 
-struct net_connection_t* net_fd( struct net_server_t* server, net_ccb_func cb , void* data ,  socket_t fd , int pending_event ) {
-    struct net_connection_t* conn = connection_create(fd);
+struct net_connection* net_fd( struct net_server* server, net_ccb_func cb , void* data ,  socket_t fd , int pending_event ) {
+    struct net_connection* conn = connection_create(fd);
     nb_socket(fd);
     exec_socket(fd);
     conn->cb = cb;
@@ -808,11 +808,11 @@ struct net_connection_t* net_fd( struct net_server_t* server, net_ccb_func cb , 
     return conn;
 }
 
-void net_stop( struct net_connection_t* conn ) {
+void net_stop( struct net_connection* conn ) {
     conn->pending_event = NET_EV_CLOSE;
 }
 
-void net_post( struct net_connection_t* conn , int ev ) {
+void net_post( struct net_connection* conn , int ev ) {
     conn->pending_event = ev;
 }
 

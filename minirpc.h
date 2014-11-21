@@ -33,7 +33,7 @@ enum {
  * to be a null-terminated string 
  */
  
-struct mrpc_varchar_t {
+struct mrpc_varchar {
     const char* val; /* null terminated guaranteed */
     size_t len;
     char buf[MRPC_MAX_LOCAL_VAR_CHAR_LEN];
@@ -45,20 +45,20 @@ struct mrpc_varchar_t {
  * own == 1 --> copy
  * own == 0 --> move  */
 
-void mrpc_varchar_create( struct mrpc_varchar_t* , const char* str , int own );
-void mrpc_varchar_destroy( struct mrpc_varchar_t* );
+void mrpc_varchar_create( struct mrpc_varchar* , const char* str , int own );
+void mrpc_varchar_destroy( struct mrpc_varchar* );
 
 /* Value 
  * Using the type to check what exactl value stored inside of the union value object
  * Type is always one of MRPC_UINT/MRPC_INT/MRPC_VARCHAR
  */
  
-struct mrpc_val_t {
+struct mrpc_val {
     int type;
     union {
         uint32_t uinteger;
         int32_t integer;
-        struct mrpc_varchar_t varchar;
+        struct mrpc_varchar varchar;
     } value;
 };
 
@@ -89,24 +89,24 @@ struct mrpc_val_t {
 /* Protocol part */
 
 /* A request object, it represents a specific request on the wire */
-struct mrpc_request_t {
+struct mrpc_request {
     char method_name[MRPC_MAX_METHOD_NAME_LEN];
     size_t method_name_len;
     int method_type;
     char transaction_id[4];
     size_t length;
     size_t par_size;
-    struct mrpc_val_t par[MRPC_MAX_PARAMETER_SIZE];
+    struct mrpc_val par[MRPC_MAX_PARAMETER_SIZE];
 };
 
 /* A response object, it represents a response object from the peer */
-struct mrpc_response_t {
+struct mrpc_response {
     int method_type;
     char method_name[MRPC_MAX_METHOD_NAME_LEN];
     size_t method_name_len;
     size_t length;
     char transaction_id[4];
-    struct mrpc_val_t result;
+    struct mrpc_val result;
     int error_code;
 };
 
@@ -169,10 +169,10 @@ void mrpc_interrupt();
  * any data available.
  * Return 0 : success ; return 1 : interruption ; return -1: failed. 
  */
-int mrpc_request_try_recv( struct mrpc_request_t* req , void** );
-int mrpc_request_recv( struct mrpc_request_t* req , void** );
+int mrpc_request_try_recv( struct mrpc_request* req , void** );
+int mrpc_request_recv( struct mrpc_request* req , void** );
 
-void mrpc_response_send( const struct mrpc_request_t* req , void* , const struct mrpc_val_t* result , int ec );
+void mrpc_response_send( const struct mrpc_request* req , void* , const struct mrpc_val* result , int ec );
 
 /* This function is used to finish a indication request */
 void mrpc_response_done( void* );
@@ -186,10 +186,10 @@ void mrpc_write_log( const char* fmt , ... );
 
 /* Mini RPC request function and it is the blocking version API */
 int mrpc_request( const char* addr, int method_type , const char* method_name ,
-                  struct mrpc_response_t* res , const char* par_fmt , ... );
+                  struct mrpc_response* res , const char* par_fmt , ... );
 
 
-typedef void (*mrpc_request_async_cb)( const struct mrpc_response_t* res , void* data );
+typedef void (*mrpc_request_async_cb)( const struct mrpc_response* res , void* data );
 
 /* Mini RPC request function with non blocking version API.
  * It requires that the MRPC is running now , so it means
@@ -204,7 +204,7 @@ int mrpc_request_async( mrpc_request_async_cb cb , void* data , int timeout ,
 void* mrpc_request_serialize( size_t* len , int method_type, const char* method_name , const char* par_fmt, ... );
 
 /* Deserialize the input data into a struct mrpc_response_t object */
-int mrpc_response_parse( void* buf , size_t sz , struct mrpc_response_t* r );
+int mrpc_response_parse( void* buf , size_t sz , struct mrpc_response* r );
 
 /* ----------------------------------------
  * Utility Function

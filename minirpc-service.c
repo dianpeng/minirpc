@@ -8,26 +8,26 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <process.h>
-typedef HANDLE th_t;
+typedef HANDLE th_hander;
 #else
 #include <pthread.h>
 #include <unistd.h>
-typedef pthread_t th_t;
+typedef pthread_t th_hander;
 #endif
 
-struct mrpc_service_entry_t;
-struct mrpc_service_table_t;
+struct mrpc_service_entry;
+struct mrpc_service_table;
 
-struct mrpc_service_entry_t {
+struct mrpc_service_entry {
     char method_name[ MRPC_MAX_METHOD_NAME_LEN ];
     void* udata;
     mrpc_service_cb func;
-    struct mrpc_service_entry_t* next;
+    struct mrpc_service_entry* next;
     int fhash;
 };
 
-struct mrpc_service_table_t {
-    struct mrpc_service_entry_t* array;
+struct mrpc_service_table {
+    struct mrpc_service_entry* array;
     size_t cap;
     size_t size;
 };
@@ -43,23 +43,23 @@ int _mrpc_stbl_calc_hash( const char* key , size_t len ) {
 }
 
 static
-void mrpc_stbl_init( struct mrpc_service_table_t* tbl , size_t cap ) {
-    tbl->array = malloc( sizeof(struct mrpc_service_entry_t) * cap );
+void mrpc_stbl_init( struct mrpc_service_table* tbl , size_t cap ) {
+    tbl->array = malloc( sizeof(struct mrpc_service_entry) * cap );
     VERIFY(tbl->array);
     tbl->cap = cap;
     tbl->size= 0;
-    memset(tbl->array,0,sizeof(struct mrpc_service_entry_t)*cap);
+    memset(tbl->array,0,sizeof(struct mrpc_service_entry)*cap);
 }
 
 static
-int _mrpc_stbl_query_slot( const struct mrpc_service_table_t* tbl , const struct mrpc_service_entry_t* entry ) {
+int _mrpc_stbl_query_slot( const struct mrpc_service_table* tbl , const struct mrpc_service_entry* entry ) {
     int idx = entry->fhash % tbl->cap;
-    struct mrpc_service_entry_t* tar;
+    struct mrpc_service_entry* tar;
 
     if( tbl->array[idx].func == NULL ) {
         tar = tbl->array + idx;
     } else {
-        struct mrpc_service_entry_t* ent;
+        struct mrpc_service_entry* ent;
         int h = entry->fhash;
 
         /* find out where we should insert such entry */
@@ -86,8 +86,8 @@ int _mrpc_stbl_query_slot( const struct mrpc_service_table_t* tbl , const struct
 
 static
 void
-_mrpc_stbl_rehash( struct mrpc_service_table_t* tbl ) {
-    struct mrpc_service_table_t tmp_tb;
+_mrpc_stbl_rehash( struct mrpc_service_table* tbl ) {
+    struct mrpc_service_table tmp_tb;
     int idx;
     size_t i;
 
@@ -105,9 +105,9 @@ _mrpc_stbl_rehash( struct mrpc_service_table_t* tbl ) {
 }
 
 static
-int mrpc_stbl_insert( struct mrpc_service_table_t* tbl ,
+int mrpc_stbl_insert( struct mrpc_service_table* tbl ,
     mrpc_service_cb cb , const char* method_name , void* udata ) {
-    struct mrpc_service_entry_t tmp_ent;
+    struct mrpc_service_entry tmp_ent;
     size_t len = strlen(method_name);
     int idx;
 
@@ -136,12 +136,12 @@ int mrpc_stbl_insert( struct mrpc_service_table_t* tbl ,
 }
 
 static
-const struct mrpc_service_entry_t*
-mrpc_stbl_query( struct mrpc_service_table_t* tbl , const char* method_name ) {
+const struct mrpc_service_entry*
+mrpc_stbl_query( struct mrpc_service_table* tbl , const char* method_name ) {
     int len = strlen(method_name);
     int fhash ;
     int idx ;
-    struct mrpc_service_entry_t* ent;
+    struct mrpc_service_entry* ent;
 
     if( len >= MRPC_MAX_METHOD_NAME_LEN )
         return NULL;
@@ -164,25 +164,25 @@ mrpc_stbl_query( struct mrpc_service_table_t* tbl , const char* method_name ) {
 
 static
 void
-mrpc_stbl_destroy( struct mrpc_service_table_t* tbl ) {
+mrpc_stbl_destroy( struct mrpc_service_table* tbl ) {
     free(tbl->array);
     tbl->cap = tbl->size = 0;
 }
 
 /* thread utility */
-struct th_pool_t {
-    th_t* handles;
+struct th_pool {
+    th_hander* handles;
     size_t th_sz;
 };
 
-struct mrpc_service_th_t {
+struct mrpc_service_th {
     int exit; /* This one is used to release the thread when error happened */
-    struct mrpc_service_t* service;
+    struct mrpc_service* service;
 };
 
 typedef void (*th_cb)(void*);
-struct th_data_t {
-    struct mrpc_service_th_t p;
+struct th_data {
+    struct mrpc_service_th p;
     th_cb cb;
 };
 
@@ -192,7 +192,7 @@ static
 unsigned int
 _stdcall
 _th_pool_entry( void* p ) {
-    struct th_data_t* d = CAST(struct th_data_t*,p);
+    struct th_data* d = CAST(struct th_data*,p);
     d->cb(&(d->p));
     return 0;
 }
@@ -200,7 +200,7 @@ _th_pool_entry( void* p ) {
 static
 void*
 _th_pool_entry( void* p ) {
-    struct th_data_t* d = CAST(struct th_data_t*,p);
+    struct th_data* d = CAST(struct th_data*,p);
     d->cb(&(d->p));
     return NULL;
 }
@@ -208,18 +208,18 @@ _th_pool_entry( void* p ) {
 
 static
 int
-th_pool_create( struct th_pool_t* pool , size_t th_sz , th_cb cb ,
-                struct th_data_t* data , int* created_sz ) {
+th_pool_create( struct th_pool* pool , size_t th_sz , th_cb cb ,
+                struct th_data* data , int* created_sz ) {
     size_t i;
 
     *created_sz = 0;
-    pool->handles = malloc(th_sz*sizeof(th_t));
+    pool->handles = malloc(th_sz*sizeof(th_hander));
     VERIFY(pool->handles);
     pool->th_sz = th_sz;
 
     for( i = 0 ; i < th_sz ; ++i ) {
 #ifdef _WIN32
-        pool->handles[i] =  (th_t)_beginthreadex(
+        pool->handles[i] =  (th_hander)_beginthreadex(
         NULL,
         0,
         _th_pool_entry,
@@ -245,7 +245,7 @@ th_pool_create( struct th_pool_t* pool , size_t th_sz , th_cb cb ,
 
 static
 int
-th_pool_join( struct th_pool_t* pool , int cnt ) {
+th_pool_join( struct th_pool* pool , int cnt ) {
 #ifdef _WIN32
     int wait_batch = 0;
     int left_wait = cnt;
@@ -287,18 +287,18 @@ th_pool_join( struct th_pool_t* pool , int cnt ) {
 
 static
 void
-th_pool_destroy( struct th_pool_t* pool ) {
+th_pool_destroy( struct th_pool* pool ) {
     free(pool->handles);
     pool->handles = NULL;
     pool->th_sz = 0;
 }
 
 /* MRPC service implementation */
-struct mrpc_service_t {
+struct mrpc_service {
     void* udata;
-    struct mrpc_service_table_t stable;
-    struct th_data_t* th_data; /* the size of this data is same as thread pool th_sz */
-    struct th_pool_t th_pool;
+    struct mrpc_service_table stable;
+    struct th_data* th_data; /* the size of this data is same as thread pool th_sz */
+    struct th_pool th_pool;
     size_t min_slp_tm; /* min sleep timeout */
     size_t max_slp_tm; /* max sleep timeout */
 };
@@ -310,11 +310,11 @@ struct mrpc_service_t {
 static
 void
 _mrpc_service_th_cb( void* par ) {
-    struct mrpc_service_th_t* th = CAST( struct mrpc_service_th_t* , par );
+    struct mrpc_service_th* th = CAST( struct mrpc_service_th* , par );
     while(!th->exit) {
         void* key;
-        struct mrpc_request_t req;
-        const struct mrpc_service_entry_t* func_entry;
+        struct mrpc_request req;
+        const struct mrpc_service_entry* func_entry;
         int ret = mrpc_request_recv(&req,&key);
 
         if( ret <0 )
@@ -332,14 +332,14 @@ _mrpc_service_th_cb( void* par ) {
         if( func_entry == NULL ) {
 
             mrpc_response_send(
-                CAST(const struct mrpc_request_t*,&req),
+                CAST(const struct mrpc_request*,&req),
                 key,
                 NULL,
                 MRPC_EC_FUNCTION_NOT_FOUND);
 
         } else {
             int error_code;
-            struct mrpc_val_t result;
+            struct mrpc_val result;
 
             func_entry->func(
                 th->service,
@@ -357,9 +357,9 @@ _mrpc_service_th_cb( void* par ) {
     }
 }
 
-struct mrpc_service_t*
+struct mrpc_service*
 mrpc_service_create( size_t sz , size_t min_slp_time , size_t max_slp_time , void* opaque ) {
-    struct mrpc_service_t* ret = malloc(sizeof(*ret));
+    struct mrpc_service* ret = malloc(sizeof(*ret));
 
     VERIFY(ret);
     VERIFY(sz !=0);
@@ -377,7 +377,7 @@ mrpc_service_create( size_t sz , size_t min_slp_time , size_t max_slp_time , voi
     return ret;
 }
 
-void mrpc_service_destroy( struct mrpc_service_t* service ) {
+void mrpc_service_destroy( struct mrpc_service* service ) {
     if( service->th_data != NULL ) {
         free(service->th_data);
     }
@@ -388,14 +388,14 @@ void mrpc_service_destroy( struct mrpc_service_t* service ) {
     free(service);
 }
 
-int mrpc_service_add( struct mrpc_service_t* service , mrpc_service_cb cb , const char* method_name , void* udata ) {
+int mrpc_service_add( struct mrpc_service* service , mrpc_service_cb cb , const char* method_name , void* udata ) {
     return mrpc_stbl_insert( &(service->stable), cb , method_name , udata );
 }
 
-void mrpc_service_run_once( struct mrpc_service_t* service ) {
+void mrpc_service_run_once( struct mrpc_service* service ) {
     void* key;
-    struct mrpc_request_t req;
-    const struct mrpc_service_entry_t* func_entry;
+    struct mrpc_request req;
+    const struct mrpc_service_entry* func_entry;
     if( mrpc_request_try_recv(&req,&key) == 0 ) {
         /* look up the service and then start to execute */
         func_entry = mrpc_stbl_query( &(service->stable), req.method_name );
@@ -409,7 +409,7 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
 
         } else {
             int error_code;
-            struct mrpc_val_t result;
+            struct mrpc_val result;
 
             func_entry->func(
                 service,
@@ -427,13 +427,13 @@ void mrpc_service_run_once( struct mrpc_service_t* service ) {
     }
 }
 
-void mrpc_service_run( struct mrpc_service_t* service ) {
-    struct mrpc_service_th_t th;
+void mrpc_service_run( struct mrpc_service* service ) {
+    struct mrpc_service_th th;
     th.service = service;
     _mrpc_service_th_cb(&th);
 }
 
-int mrpc_service_run_remote( struct mrpc_service_t* service, int thread_sz ) {
+int mrpc_service_run_remote( struct mrpc_service* service, int thread_sz ) {
     int i;
     int created_sz;
     int ret;
@@ -463,10 +463,10 @@ int mrpc_service_run_remote( struct mrpc_service_t* service, int thread_sz ) {
     return 0;
 }
 
-int mrpc_service_quit( struct mrpc_service_t* service ) {
+int mrpc_service_quit( struct mrpc_service* service ) {
     return th_pool_join(&(service->th_pool),service->th_pool.th_sz);
 }
 
-void* mrpc_service_get_udata( struct mrpc_service_t* service ) {
+void* mrpc_service_get_udata( struct mrpc_service* service ) {
     return service->udata;
 }

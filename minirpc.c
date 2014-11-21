@@ -18,7 +18,7 @@
 /* Wire protocol */
 
 static
-int decode_varchar( void* buffer , size_t length , struct mrpc_val_t* val ) {
+int decode_varchar( void* buffer , size_t length , struct mrpc_val* val ) {
     unsigned int str_len;
     int ret;
     if( length < 4 )
@@ -48,7 +48,7 @@ int decode_varchar( void* buffer , size_t length , struct mrpc_val_t* val ) {
 }
 
 static
-size_t encode_varchar( const struct mrpc_varchar_t* varchar , char* buffer ) {
+size_t encode_varchar( const struct mrpc_varchar* varchar , char* buffer ) {
     int ret = encode_uint(varchar->len,buffer);
     buffer=CAST(char*,buffer)+ret;
     memcpy(buffer,varchar->val,varchar->len);
@@ -56,7 +56,7 @@ size_t encode_varchar( const struct mrpc_varchar_t* varchar , char* buffer ) {
 }
 
 static
-size_t mrpc_cal_val_size( const struct mrpc_val_t* val ) {
+size_t mrpc_cal_val_size( const struct mrpc_val* val ) {
     switch(val->type) {
     case MRPC_UINT:
         return 1+encode_size_uint(val->value.uinteger);
@@ -71,7 +71,7 @@ size_t mrpc_cal_val_size( const struct mrpc_val_t* val ) {
 
 /* The input buffer must be ensured to be large enough */
 static
-int mrpc_encode_val( const struct mrpc_val_t* val , char* buffer ) {
+int mrpc_encode_val( const struct mrpc_val* val , char* buffer ) {
     *CAST(char*,buffer) = val->type;
     buffer=CAST(char*,buffer)+1;
 
@@ -87,7 +87,7 @@ int mrpc_encode_val( const struct mrpc_val_t* val , char* buffer ) {
 }
 
 static
-int mrpc_decode_val( struct mrpc_val_t* val , const char* buffer , size_t length ) {
+int mrpc_decode_val( struct mrpc_val* val , const char* buffer , size_t length ) {
     int type;
     int ret;
     if( length < 1 )
@@ -128,7 +128,7 @@ int mrpc_decode_val( struct mrpc_val_t* val , const char* buffer , size_t length
  */
 
 static
-int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* req ) {
+int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request* req ) {
     size_t len;
     size_t cur_pos = 0;
     int ret;
@@ -206,7 +206,7 @@ int mrpc_request_parse( void* buffer , size_t length , struct mrpc_request_t* re
 }
 
 static
-size_t mrpc_cal_response_size( const struct mrpc_response_t* response ) {
+size_t mrpc_cal_response_size( const struct mrpc_response* response ) {
     /* Method has 1 bytes , since message header length is variable, just leave it here
      * Transaction code has 4 bytes . Method name length has 1 byte and followed by the
      * var length string */
@@ -233,7 +233,7 @@ size_t mrpc_cal_response_size( const struct mrpc_response_t* response ) {
 }
 
 static
-void* mrpc_response_serialize( const struct mrpc_response_t* response , size_t* len ) {
+void* mrpc_response_serialize( const struct mrpc_response* response , size_t* len ) {
     /* Calculate the response buffer length */
     size_t sz = mrpc_cal_response_size(response);
     void* data;
@@ -280,7 +280,7 @@ void* mrpc_response_serialize( const struct mrpc_response_t* response , size_t* 
 }
 
 static
-size_t mrpc_cal_request_size( const struct mrpc_request_t* req ) {
+size_t mrpc_cal_request_size( const struct mrpc_request* req ) {
     uint64_t sz = 1 + 4 + (1+req->method_name_len);
     size_t i ;
     for( i = 0 ; i < req->par_size ; ++i ) {
@@ -298,7 +298,7 @@ size_t mrpc_cal_request_size( const struct mrpc_request_t* req ) {
 }
 
 static
-void* mrpc_request_msg_serialize( const struct mrpc_request_t* req , size_t* len ) {
+void* mrpc_request_msg_serialize( const struct mrpc_request* req , size_t* len ) {
     size_t sz = mrpc_cal_request_size(req);
     void* data;
     void* h;
@@ -348,7 +348,7 @@ void* mrpc_request_msg_serialize( const struct mrpc_request_t* req , size_t* len
 }
 
 int
-mrpc_response_parse( void* data , size_t length , struct mrpc_response_t* response ) {
+mrpc_response_parse( void* data , size_t length , struct mrpc_response* response ) {
     int ret;
 
     /* method type */
@@ -408,10 +408,10 @@ mrpc_response_parse( void* data , size_t length , struct mrpc_response_t* respon
 
 /* MRPC */
 
-struct minirpc_t {
+struct minirpc {
     struct mq_t* req_q; /* request queue */
     struct mq_t* poll_q; /* response queue */
-    struct net_server_t server; /* server for network */
+    struct net_server server; /* server for network */
     FILE* logf;
     struct slab_t conn_slab; /* slab for connection */
     int poll_tm; /* polling time */
@@ -424,11 +424,11 @@ enum {
     CONNECTION_FAILED
 };
 
-struct mrpc_res_data_t {
+struct mrpc_res_data {
     int tag;
     void* buf;
     size_t len;
-    struct mrpc_conn_t* rconn;
+    struct mrpc_conn* rconn;
 };
 
 /* This is for async connection */
@@ -446,27 +446,27 @@ enum {
     MRPC_CLIENT_REQUEST
 };
 
-struct mrpc_poll_data_t {
+struct mrpc_poll_data {
     int type;
     union {
-        struct mrpc_res_data_t resp;
+        struct mrpc_res_data resp;
         struct mrpc_client_req cli_req;
     } value;
 };
 
-struct mrpc_req_data_t {
+struct mrpc_req_data {
     void* raw_data;
     size_t raw_data_len;
-    struct mrpc_conn_t* rconn;
+    struct mrpc_conn* rconn;
 };
 
-struct mrpc_conn_t {
+struct mrpc_conn {
     int stage;
     size_t length;
-    struct net_connection_t* conn;
+    struct net_connection* conn;
     /* This 2 areas are embedded here in which it makes our code faster */
-    struct mrpc_poll_data_t poll_data;
-    struct mrpc_req_data_t request;
+    struct mrpc_poll_data poll_data;
+    struct mrpc_req_data request;
 };
 
 
@@ -489,12 +489,12 @@ int mrpc_get_package_size( void* buf , size_t sz , size_t* len )  {
 }
 
 static
-struct minirpc_t RPC;
+struct minirpc RPC;
 
 static int MRPC_INSTANCE_NUM =0;
 
 static
-void mrpc_request_parse_fail( struct mrpc_conn_t* conn ) {
+void mrpc_request_parse_fail( struct mrpc_conn* conn ) {
     conn->poll_data.type = MRPC_RESPONSE_DATA;
     conn->poll_data.value.resp.tag = RESPONSE_TAG_ERR;
     conn->poll_data.value.resp.buf = NULL;
@@ -503,8 +503,8 @@ void mrpc_request_parse_fail( struct mrpc_conn_t* conn ) {
     mq_enqueue(RPC.poll_q,&(conn->poll_data));
 }
 
-int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
-    struct mrpc_req_data_t* data;
+int mrpc_request_try_recv( struct mrpc_request* req , void** conn ) {
+    struct mrpc_req_data* data;
     int ec;
     int ret;
 
@@ -518,7 +518,7 @@ int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
         *conn = data->rconn;
         ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
         if( ec != 0 ) {
-            mrpc_request_parse_fail( CAST(struct mrpc_conn_t*,*conn));
+            mrpc_request_parse_fail( CAST(struct mrpc_conn*,*conn));
         } else {
             break;
         }
@@ -527,8 +527,8 @@ int mrpc_request_try_recv( struct mrpc_request_t* req , void** conn ) {
     return 0;
 }
 
-int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
-    struct mrpc_req_data_t* data;
+int mrpc_request_recv( struct mrpc_request* req , void** conn ) {
+    struct mrpc_req_data* data;
     int ec;
     mq_dequeue(RPC.req_q,CAST(void*,&data));
     if( data == NULL )
@@ -536,16 +536,16 @@ int mrpc_request_recv( struct mrpc_request_t* req , void** conn ) {
     *conn = data->rconn;
     ec = mrpc_request_parse(data->raw_data,data->raw_data_len,req);
     if( ec != 0 ) {
-        mrpc_request_parse_fail( CAST(struct mrpc_conn_t*,*conn));
+        mrpc_request_parse_fail( CAST(struct mrpc_conn*,*conn));
         return -1;
     }
     return 0;
 }
 
-void mrpc_response_send( const struct mrpc_request_t* req ,
-                         void* opaque , const struct mrpc_val_t* result , int ec ) {
-    struct mrpc_response_t response;
-    struct mrpc_conn_t* conn = CAST(struct mrpc_conn_t*,opaque);
+void mrpc_response_send( const struct mrpc_request* req ,
+                         void* opaque , const struct mrpc_val* result , int ec ) {
+    struct mrpc_response response;
+    struct mrpc_conn* conn = CAST(struct mrpc_conn*,opaque);
 
     assert(req->method_type != MRPC_NOTIFICATION);
 
@@ -574,7 +574,7 @@ void mrpc_response_send( const struct mrpc_request_t* req ,
 }
 
 void mrpc_response_done( void* conn ) {
-    struct mrpc_conn_t* rconn=CAST(struct mrpc_conn_t*,conn);
+    struct mrpc_conn* rconn=CAST(struct mrpc_conn*,conn);
     rconn->poll_data.type = MRPC_RESPONSE_DATA;
     rconn->poll_data.value.resp.tag = RESPONSE_TAG_DONE;
     rconn->poll_data.value.resp.rconn = rconn;
@@ -596,7 +596,7 @@ void mrpc_write_log( const char* fmt , ... ) {
     int ret;
     char buf[1024];
     va_list vlist;
-    struct mrpc_poll_data_t* res;
+    struct mrpc_poll_data* res;
 
     va_start(vlist,fmt);
     ret = vsprintf(buf,fmt,vlist);
@@ -617,7 +617,7 @@ void mrpc_write_log( const char* fmt , ... ) {
 
 /* This callback function will be used for each connection */
 static
-int mrpc_do_read( struct net_connection_t* conn , struct mrpc_conn_t* rconn ) {
+int mrpc_do_read( struct net_connection* conn , struct mrpc_conn* rconn ) {
     if( rconn->stage == PENDING_REPLY ) {
         rconn->stage = CONNECTION_FAILED;
         return NET_EV_IDLE;
@@ -651,8 +651,8 @@ int mrpc_do_read( struct net_connection_t* conn , struct mrpc_conn_t* rconn ) {
 }
 
 static
-int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
-    struct mrpc_conn_t* rconn = CAST(struct mrpc_conn_t*,conn->user_data);
+int mrpc_on_conn( int ev , int ec , struct net_connection* conn ) {
+    struct mrpc_conn* rconn = CAST(struct mrpc_conn*,conn->user_data);
     if( ec != 0 ) {
         do_log("[MRPC]:network error:%d",ec);
         return NET_EV_CLOSE;
@@ -682,9 +682,9 @@ int mrpc_on_conn( int ev , int ec , struct net_connection_t* conn ) {
 
 /* This is the main function for doing the accept operations */
 static
-int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t* conn ) {
+int mrpc_on_accept( int ec , struct net_server* ser , struct net_connection* conn ) {
     if( ec == 0 ) {
-        struct mrpc_conn_t* rconn = CAST(struct mrpc_conn_t*,slab_malloc(&(RPC.conn_slab)));
+        struct mrpc_conn* rconn = CAST(struct mrpc_conn*,slab_malloc(&(RPC.conn_slab)));
 
         conn->user_data = rconn;
         rconn->conn = conn;
@@ -702,7 +702,7 @@ int mrpc_on_accept( int ec , struct net_server_t* ser , struct net_connection_t*
 }
 
 static
-int mrpc_on_client_do_read( struct net_connection_t* conn , struct mrpc_client_req* req  , void* poll ) {
+int mrpc_on_client_do_read( struct net_connection* conn , struct mrpc_client_req* req  , void* poll ) {
     if( req->sz == 0 ) {
         /* peek the buffer size here */
         size_t sz = net_buffer_readable_size(&(conn->in));
@@ -718,7 +718,7 @@ int mrpc_on_client_do_read( struct net_connection_t* conn , struct mrpc_client_r
         /* Nice, we have already got all the data we needed here */
         size_t sz = net_buffer_readable_size(&(conn->in));
         void* data = net_buffer_peek(&(conn->in),&sz);
-        struct mrpc_response_t resp;
+        struct mrpc_response resp;
         /* Parse it into the response */
         if( mrpc_response_parse(data,sz,&resp) != 0 ) {
             /* Failed to parse the remote peer */
@@ -743,8 +743,8 @@ int mrpc_on_client_do_read( struct net_connection_t* conn , struct mrpc_client_r
 }
 
 static
-int mrpc_on_client( int ev , int ec , struct net_connection_t* conn ) {
-    struct mrpc_poll_data_t* poll = CAST(struct mrpc_poll_data_t*,conn->user_data);
+int mrpc_on_client( int ev , int ec , struct net_connection* conn ) {
+    struct mrpc_poll_data* poll = CAST(struct mrpc_poll_data*,conn->user_data);
     struct mrpc_client_req* req = &(poll->value.cli_req);
 
     assert( poll->type == MRPC_CLIENT_REQUEST );
@@ -793,7 +793,7 @@ fail:
  */
 
 static
-void mrpc_poll_handle_response( struct mrpc_res_data_t* res ) {
+void mrpc_poll_handle_response( struct mrpc_res_data* res ) {
     switch(res->tag) {
     case RESPONSE_TAG_RSP:
         if( res->rconn->stage == CONNECTION_FAILED ) {
@@ -828,23 +828,23 @@ void mrpc_poll_handle_response( struct mrpc_res_data_t* res ) {
 }
 
 static
-int mrpc_on_poll( int ev , int ec , struct net_connection_t* conn ) {
+int mrpc_on_poll( int ev , int ec , struct net_connection* conn ) {
     int i = MRPC_DEFAULT_OUTBAND_SIZE;
     while( i!= 0 ) {
         void* data;
         int ret = mq_try_dequeue(RPC.poll_q,&data);
-        struct mrpc_poll_data_t* poll_data;
+        struct mrpc_poll_data* poll_data;
         if( ret != 0 )
             break;
-        poll_data = CAST(struct mrpc_poll_data_t*,data);
+        poll_data = CAST(struct mrpc_poll_data*,data);
 
         switch( poll_data->type ) {
         case MRPC_RESPONSE_DATA:
             mrpc_poll_handle_response(&(poll_data->value.resp));
             break;
         case MRPC_CLIENT_REQUEST: {
-                struct net_connection_t* conn =
-                    net_connection(&(RPC.server),mrpc_on_client,
+                struct net_connection* conn =
+                    net_make_connection(&(RPC.server),mrpc_on_client,
                     poll_data->value.cli_req.addr,
                     poll_data->value.cli_req.timeout);
 
@@ -892,7 +892,7 @@ int mrpc_init( const char* logf_name , const char* addr , int polling_time ) {
     assert( MRPC_INSTANCE_NUM == 0 );
 
     /* initialize RPC object */
-    slab_create(&(RPC.conn_slab),sizeof(struct mrpc_conn_t),MRPC_DEFAULT_RESERVE_MEMPOOL);
+    slab_create(&(RPC.conn_slab),sizeof(struct mrpc_conn),MRPC_DEFAULT_RESERVE_MEMPOOL);
     RPC.req_q = mq_create();
     RPC.poll_q = mq_create();
     RPC.logf = fopen(logf_name,"a+");
@@ -983,7 +983,7 @@ int mrpc_poll() {
         return 0;
 }
 
-void mrpc_varchar_create( struct mrpc_varchar_t* varchar , const char* str , int own ) {
+void mrpc_varchar_create( struct mrpc_varchar* varchar , const char* str , int own ) {
     if( own ) {
         varchar->len = strlen(str);
         varchar->val=str;
@@ -1000,7 +1000,7 @@ void mrpc_varchar_create( struct mrpc_varchar_t* varchar , const char* str , int
     }
 }
 
-void mrpc_varchar_destroy( struct mrpc_varchar_t* varchar ) {
+void mrpc_varchar_destroy( struct mrpc_varchar* varchar ) {
     if(varchar->buf != varchar->val) {
         free(CAST(void*,varchar->val));
     }
@@ -1020,7 +1020,7 @@ void gen_transaction_id( char transaction_id[4] ) {
 }
 
 static
-void mrpc_request_clean( struct mrpc_request_t* req ) {
+void mrpc_request_clean( struct mrpc_request* req ) {
     size_t i;
 
     for( i = 0 ; i < req->par_size ; ++i ) {
@@ -1032,7 +1032,7 @@ void mrpc_request_clean( struct mrpc_request_t* req ) {
 
 static
 void* mrpc_request_vserialize( size_t* len , int method_type ,const char* method_name , const char* par_fmt , va_list vl ) {
-    struct mrpc_request_t req;
+    struct mrpc_request req;
     void* seria_data = NULL;
     int i ;
 
@@ -1087,7 +1087,7 @@ int mrpc_request_async( mrpc_request_async_cb cb , void* udata , int timeout,
     void* req_data;
     size_t data_len;
     va_list vlist;
-    struct mrpc_poll_data_t* req;
+    struct mrpc_poll_data* req;
 
 
     va_start(vlist,par_fmt);
@@ -1140,7 +1140,7 @@ int mrpc_request_do_send( socket_t fd , const void* data, size_t sz ) {
 #define STACK_BUFF_SIZE (1024*10)
 
 static
-int mrpc_request_do_recv( socket_t fd , struct mrpc_response_t* resp ) {
+int mrpc_request_do_recv( socket_t fd , struct mrpc_response* resp ) {
     int ret;
     char sbuf[STACK_BUFF_SIZE]; /* 10 kb buffer on stack which doesn't need heap allocation */
     char* hbuf=NULL;            /* buffer on heap , once we found out that we cannot hold it */
@@ -1194,7 +1194,7 @@ void client_net_init() {
     }
 }
 
-int mrpc_request( const char* addr , int method_type , const char* method_name , struct mrpc_response_t* res , const char* par_fmt , ... ) {
+int mrpc_request( const char* addr , int method_type , const char* method_name , struct mrpc_response* res , const char* par_fmt , ... ) {
     va_list vl;
     int ret = 0;
     void* seria_data = NULL;

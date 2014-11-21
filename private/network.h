@@ -43,37 +43,37 @@ enum {
     NET_EV_NOT_LARGE_THAN = 1 << 20
 };
 
-struct net_buffer_t {
+struct net_buffer {
     void* mem;
     size_t consume_pos;
     size_t produce_pos;
     size_t capacity;
 };
 
-struct net_connection_t;
+struct net_connection;
 
-typedef int (*net_ccb_func)( int , int , struct net_connection_t* );
+typedef int (*net_ccb_func)( int , int , struct net_connection* );
 
-struct net_connection_t {
-    struct net_connection_t* next;
-    struct net_connection_t* prev;
+struct net_connection {
+    struct net_connection* next;
+    struct net_connection* prev;
     void* user_data;
     socket_t socket_fd;
-    struct net_buffer_t in; // in buffer is the buffer for reading
-    struct net_buffer_t out;// out buffer is the buffer for sending
+    struct net_buffer in; // in buffer is the buffer for reading
+    struct net_buffer out;// out buffer is the buffer for sending
     net_ccb_func cb;
     int pending_event;
     int timeout;
 };
 
-struct net_server_t;
+struct net_server;
 
-typedef int (*net_acb_func)( int err_code , struct net_server_t* , struct net_connection_t* connection );
+typedef int (*net_acb_func)( int err_code , struct net_server* , struct net_connection* connection );
 
-struct net_server_t {
+struct net_server {
     void* user_data;
     socket_t listen_fd;
-    struct net_connection_t conns;
+    struct net_connection conns;
     socket_t ctrl_fd;
     net_acb_func cb;
     int last_io_time;
@@ -83,41 +83,41 @@ struct net_server_t {
 void net_init();
 
 // server function
-int net_server_create( struct net_server_t* , const char* addr , net_acb_func cb );
-void net_server_destroy( struct net_server_t* );
-int net_server_poll( struct net_server_t* ,int , int* );
-int net_server_wakeup( struct net_server_t* );
+int net_server_create( struct net_server* , const char* addr , net_acb_func cb );
+void net_server_destroy( struct net_server* );
+int net_server_poll( struct net_server* ,int , int* );
+int net_server_wakeup( struct net_server* );
 
 // client function
 socket_t net_block_client_connect( const char* addr );
 
 // connect to a specific server
-int net_non_block_client_connect( struct net_server_t* server ,
+int net_non_block_client_connect( struct net_server* server ,
     const char* addr ,
     net_ccb_func cb ,
     void* udata ,
     int timeout );
 
-int net_non_block_connect( struct net_connection_t* conn , const char* addr , int timeout );
+int net_non_block_connect( struct net_connection* conn , const char* addr , int timeout );
 
-struct net_connection_t* net_connection( struct net_server_t* server , net_ccb_func cb , 
-                                         const char* addr , int timeout );
+struct net_connection* net_make_connection( struct net_server* server , net_ccb_func cb , 
+    const char* addr , int timeout );
 
 // timer and other socket function
-struct net_connection_t* net_timer( struct net_server_t* server , net_ccb_func cb , void* udata , int timeout );
-struct net_connection_t* net_fd( struct net_server_t* server , net_ccb_func cb , void* udata , socket_t fd , int pending_event );
+struct net_connection* net_timer( struct net_server* server , net_ccb_func cb , void* udata , int timeout );
+struct net_connection* net_fd( struct net_server* server , net_ccb_func cb , void* udata , socket_t fd , int pending_event );
 
 // cancle another connection through struct net_connection_t* object , after this pointer is
 // invalid, so do not store this pointer after calling this function
-void net_stop( struct net_connection_t* conn );
-void net_post( struct net_connection_t* conn , int ev );
+void net_stop( struct net_connection* conn );
+void net_post( struct net_connection* conn , int ev );
 
 // buffer function
-void* net_buffer_consume( struct net_buffer_t* , size_t* );
-void* net_buffer_peek( struct net_buffer_t*  , size_t* );
-void net_buffer_produce( struct net_buffer_t* , const void* data , size_t );
-struct net_buffer_t* net_buffer_create( size_t cap , struct net_buffer_t* );
-void net_buffer_free( struct net_buffer_t* );
+void* net_buffer_consume( struct net_buffer* , size_t* );
+void* net_buffer_peek( struct net_buffer*  , size_t* );
+void net_buffer_produce( struct net_buffer* , const void* data , size_t );
+struct net_buffer* net_buffer_create( size_t cap , struct net_buffer* );
+void net_buffer_free( struct net_buffer* );
 #define net_buffer_readable_size(b) ((b)->produce_pos - (b)->consume_pos)
 #define net_buffer_writeable_size(b) ((b)->capacity - (b)->produce_pos)
 

@@ -26,7 +26,7 @@ clock_t START;
     } while(0)
 
 static
-void mrpc_req_cb( const struct mrpc_response_t* res , void* data ) {
+void mrpc_req_cb( const struct mrpc_response* res , void* data ) {
     VERIFY( res != NULL );
     VERIFY( res->result.value.uinteger == 4 );
     --TIMES;

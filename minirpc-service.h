@@ -11,30 +11,30 @@
  * is not available
  */
 
-struct mrpc_val_t;
-struct mrpc_service_t;
-struct mrpc_request_t;
+struct mrpc_val;
+struct mrpc_service;
+struct mrpc_request;
 
-struct mrpc_service_t* mrpc_service_create( size_t sz ,
+struct mrpc_service* mrpc_service_create( size_t sz ,
     size_t min_slp_time , size_t max_slp_time , void* opaque );
 
 /* Typically you don't have to call this function */
-void mrpc_service_destroy( struct mrpc_service_t* );
+void mrpc_service_destroy( struct mrpc_service* );
 
-typedef void (*mrpc_service_cb)( struct mrpc_service_t* ,
-                                 const struct mrpc_request_t* ,
+typedef void (*mrpc_service_cb)( struct mrpc_service* ,
+                                 const struct mrpc_request* ,
                                  void*,
                                  int* ,
-                                 struct mrpc_val_t* );
+                                 struct mrpc_val* );
 
 /* This function is _NOT_ thread safe, call it before you call mrpc_service_run_remote
  * and after you call mrpc_service_create in the same thread */
 
-int mrpc_service_add( struct mrpc_service_t*, mrpc_service_cb cb , const char* method_name , void* udata );
+int mrpc_service_add( struct mrpc_service*, mrpc_service_cb cb , const char* method_name , void* udata );
 
 /* Running the service in the caller thread  */
-void mrpc_service_run_once( struct mrpc_service_t* );
-void mrpc_service_run( struct mrpc_service_t* );
+void mrpc_service_run_once( struct mrpc_service* );
+void mrpc_service_run( struct mrpc_service* );
 
 /* Running the service in the remote thread, the user needs to 
  * specify the thread number. This function will not block or 
@@ -42,7 +42,7 @@ void mrpc_service_run( struct mrpc_service_t* );
  * function will be executed in back ground thread.
  */
  
-int mrpc_service_run_remote( struct mrpc_service_t* , int thread_sz );
+int mrpc_service_run_remote( struct mrpc_service* , int thread_sz );
 
 /* Call this function inside of the thread that call mrpc_service_run_remote
  * This function will block until all the thread join in the calling thread.
@@ -55,11 +55,11 @@ int mrpc_service_run_remote( struct mrpc_service_t* , int thread_sz );
  * internally . Then call mrpc_service_run_quit after mrpc_run is _ALWAYS_
  * safe there. */
  
-int mrpc_service_quit( struct mrpc_service_t* );
+int mrpc_service_quit( struct mrpc_service* );
 
 /* Utility */
 
 /* Get opaque user data */
-void* mrpc_service_get_udata( struct mrpc_service_t* );
+void* mrpc_service_get_udata( struct mrpc_service* );
 
 #endif /* MINIRPC_SERVICE_H_ */

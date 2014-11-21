@@ -12,10 +12,10 @@
 static
 void
 hello_world_cb( struct mrpc_service_t* service ,
-                const struct mrpc_request_t* req ,
+                const struct mrpc_request* req ,
                 void* udata,
                 int* error_code,
-                struct mrpc_val_t* val ) {
+                struct mrpc_val* val ) {
 
     assert(strcmp(req->method_name,"Hello World") == 0);
     /* checking the parameter size */
@@ -33,10 +33,10 @@ hello_world_cb( struct mrpc_service_t* service ,
 static
 void
 addition_cb( struct mrpc_service_t* service ,
-             const struct mrpc_request_t* req ,
+             const struct mrpc_request* req ,
              void* udata,
              int* error_code ,
-             struct mrpc_val_t* val ) {
+             struct mrpc_val* val ) {
 
     if( req->par_size != 2 ) {
         *error_code = MRPC_EC_FUNCTION_INVALID_PARAMETER_SIZE;
@@ -54,7 +54,7 @@ addition_cb( struct mrpc_service_t* service ,
 }
 
 int main() {
-    struct mrpc_service_t* service;
+    struct mrpc_service* service;
     int ret;
 
     if( mrpc_init("log.txt","127.0.0.1:12345",0) != 0 ) {
