@@ -19,11 +19,11 @@ A small RPC implementation.
 	Issue a request on client:
 	API:
 	int mrpc_request( const char* addr, int method_type , const char* method_name ,
-                  struct mrpc_response_t* res , const char* par_fmt , ... );
+                  struct mrpc_response* res , const char* par_fmt , ... );
 				  
 	Code:
 		// Suppose we have a Add function register on server
-		struct mrpc_response_t response;
+		struct mrpc_response response;
 		mrpc_request("127.0.0.1:12345",MRPC_FUNCTION,"Add",
 			&response,"%u%u",1,2);
 		printf("1+2=%d",response.result.value.uinteger);
