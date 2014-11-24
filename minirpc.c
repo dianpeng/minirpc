@@ -881,6 +881,7 @@ void install_signal_handler() {
     signal(SIGTERM,mrpc_stop);
     signal(SIGINT,mrpc_stop);
     signal(SIGTSTP,mrpc_stop);
+    signal(SIGPIPE, SIG_IGN);
 #endif
 }
 
