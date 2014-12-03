@@ -293,7 +293,7 @@ void clearqueue( struct queue_t* q ) {
     }
 }
 
-struct mq_t {
+struct mq {
     struct queue_t q; /* the real queue */
     spinlock_t sp_lk; /* spin lock to protect the queue itself */
     mutex_t lk;       /* this mutex and condition variable is used to protect sleeped thread */
@@ -302,8 +302,8 @@ struct mq_t {
     int exit; /* this flag is used to notify the blocked the dequeue function to exit */
 };
 
-struct mq_t* mq_create() {
-    struct mq_t* ret = malloc( sizeof(*ret) );
+struct mq* mq_create() {
+    struct mq* ret = malloc( sizeof(*ret) );
     VERIFY(ret);
     initqueue(&(ret->q));
     cond_init(&(ret->c));
@@ -314,7 +314,7 @@ struct mq_t* mq_create() {
     return ret;
 }
 
-void mq_destroy( struct mq_t* mq ) {
+void mq_destroy( struct mq* mq ) {
     clearqueue(&(mq->q));
     mutex_delete(&(mq->lk));
     cond_delete(&(mq->c));
@@ -322,7 +322,7 @@ void mq_destroy( struct mq_t* mq ) {
     free(mq);
 }
 
-void mq_enqueue( struct mq_t* mq , void* data ) {
+void mq_enqueue( struct mq* mq , void* data ) {
     /* do the allocation */
     struct queue_node_t* n = malloc(sizeof(*n));
     VERIFY(n);
@@ -352,7 +352,7 @@ void mq_enqueue( struct mq_t* mq , void* data ) {
 #define MIN_SLEEP_TIME 2
 #define MAX_SLEEP_TIME 256
 
-void mq_dequeue( struct mq_t* mq, void** data ) {
+void mq_dequeue( struct mq* mq, void** data ) {
     /* get data from the back queue no lock now. */
     struct queue_node_t* n=NULL;
     int ret;
@@ -424,7 +424,7 @@ done:
     free(n);
 }
 
-int mq_try_dequeue( struct mq_t* mq , void** data ) {
+int mq_try_dequeue( struct mq* mq , void** data ) {
     struct queue_node_t* n;
     int ret;
 
@@ -447,7 +447,7 @@ int mq_try_dequeue( struct mq_t* mq , void** data ) {
     }
 }
 
-void mq_wakeup( struct mq_t* mq ) {
+void mq_wakeup( struct mq* mq ) {
     mq->exit = 1;
     cond_signal_all(&(mq->c));
 }

@@ -11,7 +11,7 @@
 
 static
 void
-hello_world_cb( struct mrpc_service_t* service ,
+hello_world_cb( struct mrpc_service* service ,
                 const struct mrpc_request* req ,
                 void* udata,
                 int* error_code,
@@ -32,7 +32,7 @@ hello_world_cb( struct mrpc_service_t* service ,
 /* This function will calculate the addition of 2 unsigned integer */
 static
 void
-addition_cb( struct mrpc_service_t* service ,
+addition_cb( struct mrpc_service* service ,
              const struct mrpc_request* req ,
              void* udata,
              int* error_code ,

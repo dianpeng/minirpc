@@ -409,11 +409,11 @@ mrpc_response_parse( void* data , size_t length , struct mrpc_response* response
 /* MRPC */
 
 struct minirpc {
-    struct mq_t* req_q; /* request queue */
-    struct mq_t* poll_q; /* response queue */
+    struct mq* req_q; /* request queue */
+    struct mq* poll_q; /* response queue */
     struct net_server server; /* server for network */
     FILE* logf;
-    struct slab_t conn_slab; /* slab for connection */
+    struct slab conn_slab; /* slab for connection */
     int poll_tm; /* polling time */
 };
 
